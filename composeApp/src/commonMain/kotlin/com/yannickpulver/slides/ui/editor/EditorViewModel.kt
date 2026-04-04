@@ -201,16 +201,20 @@ class EditorViewModel : ViewModel() {
         _state.update { it.copy(projectFilePath = path) }
     }
 
-    fun exportCurrentSlide(outputDir: String, scaleFactor: Int = 1) {
-        val slide = _state.value.currentSlide ?: return
+    fun exportAllSlides(outputDir: String, scaleFactor: Int = 1) {
+        val slides = _state.value.project.slides
         val aspectRatio = _state.value.project.aspectRatio
-        if (_state.value.exportProgress != null) return // already exporting
+        if (_state.value.exportProgress != null || slides.isEmpty()) return
 
         viewModelScope.launch {
             _state.update { it.copy(exportProgress = 0f) }
             withContext(Dispatchers.Default) {
-                exportSlideAsImage(slide, aspectRatio, outputDir, scaleFactor) { progress ->
-                    _state.update { it.copy(exportProgress = progress) }
+                slides.forEachIndexed { idx, slide ->
+                    val baseProgress = idx.toFloat() / slides.size
+                    exportSlideAsImage(slide, aspectRatio, outputDir, scaleFactor, idx + 1) { slideProgress ->
+                        val total = (baseProgress + slideProgress / slides.size).coerceIn(0f, 1f)
+                        _state.update { it.copy(exportProgress = total) }
+                    }
                 }
             }
             _state.update { it.copy(exportProgress = null) }

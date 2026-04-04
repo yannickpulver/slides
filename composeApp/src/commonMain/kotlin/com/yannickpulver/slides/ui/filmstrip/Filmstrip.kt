@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.Slide
+import com.yannickpulver.slides.ui.editor.SlidePreview
 import compose.icons.TablerIcons
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import io.github.vinceglb.filekit.path
@@ -127,14 +128,15 @@ private fun SlideThumbnail(
                 modifier = Modifier
                     .width(52.dp)
                     .aspectRatio(ratio)
-                    .background(Color.White, RoundedCornerShape(2.dp)),
-                contentAlignment = Alignment.Center,
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White),
             ) {
-                Text(
-                    "${slide.elements.size}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray,
-                )
+                if (slide.elements.isNotEmpty()) {
+                    SlidePreview(
+                        slide = slide,
+                        aspectRatio = AspectRatio.INSTAGRAM_PORTRAIT,
+                    )
+                }
             }
             Text(
                 "$index",

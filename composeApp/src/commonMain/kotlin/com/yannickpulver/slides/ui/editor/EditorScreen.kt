@@ -167,7 +167,7 @@ fun EditorScreen(viewModel: EditorViewModel) {
                 onSlideSelect = viewModel::selectSlide,
                 onAddSlide = viewModel::addSlide,
                 onRemoveSlide = viewModel::removeSlide,
-                onExportSlide = { outputDir, scale -> viewModel.exportCurrentSlide(outputDir, scale) },
+                onExportSlide = { outputDir, scale -> viewModel.exportAllSlides(outputDir, scale) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -211,5 +211,6 @@ expect fun exportSlideAsImage(
     aspectRatio: com.yannickpulver.slides.model.AspectRatio,
     outputDir: String,
     scaleFactor: Int = 1,
+    slideIndex: Int = 1,
     onProgress: (Float) -> Unit = {},
 )

@@ -68,7 +68,7 @@ android {
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
-        versionName = "1.0"
+        versionName = appVersion
     }
     packaging {
         resources {
@@ -90,14 +90,27 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
+val appVersion = rootProject.file("VERSION").readText().trim()
+
 compose.desktop {
     application {
         mainClass = "com.yannickpulver.slides.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.yannickpulver.slides"
-            packageVersion = "1.0.0"
+            targetFormats(TargetFormat.Dmg)
+            packageName = "Slides"
+            packageVersion = appVersion
+            includeAllModules = true
+            macOS {
+                bundleID = "com.yannickpulver.slides"
+                iconFile.set(project.file("icon.icns"))
+                minimumSystemVersion = "12.0"
+                signing {
+                    sign.set(true)
+                    identity.set("Yannick Pulver")
+                }
+                entitlementsFile.set(project.file("default-entitlements.plist"))
+            }
         }
     }
 }

@@ -20,18 +20,19 @@ actual fun exportSlideAsImage(
     aspectRatio: AspectRatio,
     outputDir: String,
     scaleFactor: Int,
+    slideIndex: Int,
     onProgress: (Float) -> Unit,
 ) {
     val hasVideo = slide.elements.any { it.type == MediaType.VIDEO }
     if (hasVideo) {
-        exportSlideAsVideo(slide, aspectRatio, outputDir, scaleFactor, onProgress)
+        exportSlideAsVideo(slide, aspectRatio, outputDir, scaleFactor, slideIndex, onProgress)
     } else {
-        exportSlideAsPng(slide, aspectRatio, outputDir, scaleFactor)
+        exportSlideAsPng(slide, aspectRatio, outputDir, scaleFactor, slideIndex)
         onProgress(1f)
     }
 }
 
-private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: String, scaleFactor: Int) {
+private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: String, scaleFactor: Int, slideIndex: Int) {
     val width = aspectRatio.width * scaleFactor
     val height = aspectRatio.height * scaleFactor
     val canvas = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
@@ -49,7 +50,7 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
 
     g2d.dispose()
     val suffix = if (scaleFactor > 1) "@${scaleFactor}x" else ""
-    val outputFile = File(outputDir, "slide_${slide.id.take(8)}${suffix}.png")
+    val outputFile = File(outputDir, "slide${slideIndex}-${slide.id.take(8)}${suffix}.png")
     ImageIO.write(canvas, "png", outputFile)
     println("Exported: ${outputFile.absolutePath}")
 }
@@ -59,12 +60,13 @@ private fun exportSlideAsVideo(
     aspectRatio: AspectRatio,
     outputDir: String,
     scaleFactor: Int,
+    slideIndex: Int,
     onProgress: (Float) -> Unit,
 ) {
     val width = aspectRatio.width * scaleFactor
     val height = aspectRatio.height * scaleFactor
     val fps = 30.0
-    val outputFile = File(outputDir, "slide_${slide.id.take(8)}.mp4")
+    val outputFile = File(outputDir, "slide${slideIndex}-${slide.id.take(8)}.mp4")
 
     val videoElements = slide.elements.filter { it.type == MediaType.VIDEO }
     val imageElements = slide.elements.filter { it.type == MediaType.IMAGE }
