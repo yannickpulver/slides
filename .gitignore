@@ -1,0 +1,9 @@
+.gradle/
+build/
+composeApp/build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+.research/
+composeApp/hs_err_*.log
