@@ -54,7 +54,17 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.javacv.platform)
+            implementation(libs.javacv)
+            // Only include macOS natives (javacv-platform pulls all platforms)
+            val javacvVersion = "1.5.11"
+            val ffmpegVersion = "7.1-$javacvVersion"
+            val opencvVersion = "4.10.0-$javacvVersion"
+            listOf("macosx-x86_64", "macosx-arm64").forEach { platform ->
+                implementation("org.bytedeco:ffmpeg:$ffmpegVersion:$platform")
+                implementation("org.bytedeco:opencv:$opencvVersion:$platform")
+                implementation("org.bytedeco:openblas:0.3.28-$javacvVersion:$platform")
+                implementation("org.bytedeco:javacpp:$javacvVersion:$platform")
+            }
         }
     }
 }

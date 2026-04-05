@@ -40,6 +40,7 @@ kotlinx-coroutinesSwing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-s
 composemediaplayer = { module = "io.github.kdroidfilter:composemediaplayer", version.ref = "composemediaplayer" }
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
 compose-icons-tabler = { module = "br.com.devsrsouza.compose.icons:tabler-icons", version = "1.1.1" }
+javacv = { module = "org.bytedeco:javacv", version = "1.5.11" }
 javacv-platform = { module = "org.bytedeco:javacv-platform", version = "1.5.11" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.8.1" }
 
