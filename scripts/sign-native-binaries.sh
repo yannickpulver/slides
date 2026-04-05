@@ -83,12 +83,16 @@ echo "=== Verifying signature..."
 codesign --verify --deep --strict "$APP_PATH"
 echo "  App signature valid!"
 
-# Step 5: Create DMG
+# Step 5: Create DMG with Applications symlink
 echo ""
 echo "=== Creating DMG..."
 mkdir -p "$(dirname "$DMG_PATH")"
 rm -f "$DMG_PATH"
-hdiutil create -volname "Slides" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
+DMG_STAGE="$TEMP_DIR/dmg-stage"
+mkdir -p "$DMG_STAGE"
+cp -R "$APP_PATH" "$DMG_STAGE/"
+ln -s /Applications "$DMG_STAGE/Applications"
+hdiutil create -volname "Slides" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG_PATH"
 
 # Step 6: Sign the DMG itself
 echo ""
