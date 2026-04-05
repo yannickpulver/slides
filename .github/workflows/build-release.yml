@@ -6,6 +6,9 @@ on:
     paths-ignore:
       - '**/README.md'
 
+permissions:
+  contents: write
+
 jobs:
   build-mac:
     runs-on: macos-15
