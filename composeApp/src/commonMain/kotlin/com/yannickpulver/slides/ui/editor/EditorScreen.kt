@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,7 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,7 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -38,11 +44,16 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import com.yannickpulver.slides.ui.filmstrip.Filmstrip
 import compose.icons.TablerIcons
 import compose.icons.tablericons.ArrowLeft
+import compose.icons.tablericons.Download
 import compose.icons.tablericons.Plus
+import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
+import io.github.vinceglb.filekit.path
 
 @Composable
 fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
@@ -77,7 +88,8 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    .padding(top = 48.dp),
             ) {
                 val density = LocalDensity.current
                 val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
@@ -117,6 +129,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                             .align(Alignment.CenterStart)
                             .fillMaxHeight()
                             .width(edgeWidth.coerceAtLeast(40.dp))
+                            .pointerHoverIcon(PointerIcon.Hand)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -141,6 +154,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                         .align(Alignment.CenterEnd)
                         .fillMaxHeight()
                         .width(edgeWidth.coerceAtLeast(40.dp))
+                        .pointerHoverIcon(PointerIcon.Hand)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -168,22 +182,62 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 onSlideSelect = viewModel::selectSlide,
                 onAddSlide = viewModel::addSlide,
                 onRemoveSlide = viewModel::removeSlide,
-                onExportSlide = { outputDir, scale -> viewModel.exportAllSlides(outputDir, scale) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
 
-        // Back button
+        // Back button top-left
         if (onBack != null) {
-            androidx.compose.material3.IconButton(
+            IconButton(
                 onClick = onBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp).pointerHoverIcon(PointerIcon.Hand),
             ) {
                 Icon(
                     TablerIcons.ArrowLeft,
                     contentDescription = "Back to projects",
                     modifier = Modifier.size(20.dp),
                 )
+            }
+        }
+
+        // Export button top-right
+        run {
+            var exportMenuExpanded by remember { mutableStateOf(false) }
+            var exportScale by remember { mutableStateOf(1) }
+            val dirLauncher = rememberDirectoryPickerLauncher { dir ->
+                dir?.path?.let { viewModel.exportAllSlides(it, exportScale) }
+            }
+
+            Box(modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+                androidx.compose.material3.TextButton(
+                    onClick = { exportMenuExpanded = true },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                ) {
+                    Text("Export", color = MaterialTheme.colorScheme.onSurface)
+                }
+                DropdownMenu(
+                    expanded = exportMenuExpanded,
+                    onDismissRequest = { exportMenuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Export 1x") },
+                        onClick = {
+                            exportScale = 1
+                            exportMenuExpanded = false
+                            dirLauncher.launch()
+                        },
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Export 2x") },
+                        onClick = {
+                            exportScale = 2
+                            exportMenuExpanded = false
+                            dirLauncher.launch()
+                        },
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                    )
+                }
             }
         }
 

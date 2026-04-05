@@ -51,6 +51,8 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -186,7 +188,7 @@ fun SlideCanvas(
                     SlideTemplate.entries.forEach { tmpl ->
                         FilledTonalIconButton(
                             onClick = { onTemplateSelected(tmpl) },
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(36.dp).pointerHoverIcon(PointerIcon.Hand),
                         ) {
                             TemplateIcon(tmpl, modifier = Modifier.size(18.dp))
                         }
@@ -482,7 +484,7 @@ private fun VideoSlotContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 FilledTonalIconButton(
                     onClick = { playerActive = true },
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(48.dp).pointerHoverIcon(PointerIcon.Hand),
                 ) {
                     Icon(TablerIcons.PlayerPlay, contentDescription = "Play video", modifier = Modifier.size(24.dp))
                 }
@@ -583,6 +585,7 @@ private fun EmptySlot(onAddImage: (String) -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5F5F5))
+            .pointerHoverIcon(PointerIcon.Hand)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -683,7 +686,17 @@ fun SlidePreview(
                         if (element != null) {
                             PreviewSlotContent(element)
                         } else {
-                            Box(Modifier.fillMaxSize().background(Color(0xFFF5F5F5)))
+                            Box(
+                                Modifier.fillMaxSize().background(Color(0xFFF5F5F5)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    TablerIcons.Photo,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = Color.LightGray,
+                                )
+                            }
                         }
                     }
                 }

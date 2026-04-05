@@ -87,6 +87,7 @@ fun ProjectPickerScreen(
 
             FilledTonalButton(
                 onClick = onCreateProject,
+                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                 colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
                     containerColor = Color.White,
                 ),
@@ -211,7 +212,7 @@ private fun ProjectCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(28.dp).pointerHoverIcon(PointerIcon.Hand)) {
                     Icon(
                         TablerIcons.Trash,
                         contentDescription = "Delete",

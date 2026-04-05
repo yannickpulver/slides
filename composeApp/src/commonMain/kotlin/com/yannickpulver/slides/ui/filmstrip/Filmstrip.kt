@@ -9,14 +9,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,15 +30,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.ui.editor.SlidePreview
 import compose.icons.TablerIcons
-import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
-import io.github.vinceglb.filekit.path
-import compose.icons.tablericons.Download
 import compose.icons.tablericons.Plus
 import compose.icons.tablericons.X
 
@@ -50,14 +50,9 @@ fun Filmstrip(
     onSlideSelect: (String) -> Unit,
     onAddSlide: () -> Unit,
     onRemoveSlide: (String) -> Unit,
-    onExportSlide: (String, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
-    var exportScale by remember { mutableStateOf(1) }
-    val dirLauncher = rememberDirectoryPickerLauncher { dir ->
-        dir?.path?.let { onExportSlide(it, exportScale) }
-    }
 
     Surface(modifier = modifier, tonalElevation = 2.dp) {
         Row(
@@ -70,9 +65,8 @@ fun Filmstrip(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                itemsIndexed(slides, key = { _, slide -> slide.id }) { index, slide ->
+                items(slides, key = { it.id }) { slide ->
                     SlideThumbnail(
-                        index = index + 1,
                         slide = slide,
                         ratio = ratio,
                         isSelected = slide.id == selectedSlideId,
@@ -82,26 +76,10 @@ fun Filmstrip(
                 }
 
                 item {
-                    IconButton(onClick = onAddSlide) {
+                    IconButton(onClick = onAddSlide, modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)) {
                         Icon(TablerIcons.Plus, contentDescription = "Add slide", modifier = Modifier.size(20.dp))
                     }
                 }
-            }
-
-            Text(
-                "Export:",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FilledTonalIconButton(
-                onClick = { exportScale = 1; dirLauncher.launch() },
-            ) {
-                Text("1x", style = MaterialTheme.typography.labelSmall)
-            }
-            FilledTonalIconButton(
-                onClick = { exportScale = 2; dirLauncher.launch() },
-            ) {
-                Text("2x", style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -109,7 +87,6 @@ fun Filmstrip(
 
 @Composable
 private fun SlideThumbnail(
-    index: Int,
     slide: Slide,
     ratio: Float,
     isSelected: Boolean,
@@ -126,33 +103,30 @@ private fun SlideThumbnail(
                 .clip(RoundedCornerShape(4.dp))
                 .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
                 .clickable { onClick() }
-                .padding(4.dp),
+                .pointerHoverIcon(PointerIcon.Hand),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(
                 modifier = Modifier
-                    .width(52.dp)
+                    .fillMaxWidth()
                     .aspectRatio(ratio)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(RoundedCornerShape(4.dp))
+                    .clipToBounds()
                     .background(Color.White),
             ) {
                 if (slide.elements.isNotEmpty()) {
                     SlidePreview(
                         slide = slide,
                         aspectRatio = AspectRatio.INSTAGRAM_PORTRAIT,
+                        fillFraction = 1f,
                     )
                 }
             }
-            Text(
-                "$index",
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.padding(top = 2.dp),
-            )
         }
 
         IconButton(
             onClick = onRemove,
-            modifier = Modifier.align(Alignment.TopEnd).size(18.dp),
+            modifier = Modifier.align(Alignment.TopEnd).size(18.dp).pointerHoverIcon(PointerIcon.Hand),
         ) {
             Icon(
                 TablerIcons.X,
