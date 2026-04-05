@@ -1,5 +1,4 @@
 name: "Release"
-# Build signed DMG and create GitHub release
 
 on:
   push:
@@ -18,40 +17,24 @@ jobs:
           distribution: 'zulu'
           java-version: 21
 
+      - name: Install Fastlane
+        run: |
+          gem install bundler
+          bundle install
+
       - name: Import signing certificate
         uses: apple-actions/import-codesign-certs@v2
         with:
           p12-file-base64: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA_MACOS }}
           p12-password: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD_MACOS }}
 
-      - name: Set default keychain
-        run: security default-keychain -s signing_temp.keychain
-
-      - name: Build DMG
-        run: ./gradlew packageReleaseDmg
-
-      - name: Install notarization tools
-        run: |
-          gem install bundler
-          cat > Gemfile << 'EOF'
-          source "https://rubygems.org"
-          gem "fastlane"
-          EOF
-          bundle install
-
-      - name: Write API key
-        run: echo "$KEY" > mac-api-key.json
+      - name: Write secret to file
+        run: echo "$KEY" > fastlane/mac-api-key.json
         env:
           KEY: ${{ secrets.APPSTORE_CONNECT_API_JSON }}
 
-      - name: Notarize DMG
-        run: |
-          VERSION=$(cat VERSION)
-          bundle exec fastlane run notarize \
-            package:"composeApp/build/compose/binaries/main-release/dmg/Slides-${VERSION}.dmg" \
-            bundle_id:"com.yannickpulver.slides" \
-            api_key_path:"mac-api-key.json" \
-            print_log:"true"
+      - name: Build with Gradle
+        run: bundle exec fastlane macos deploy_dmg
 
       - name: Upload DMG as Artifact
         uses: actions/upload-artifact@v4
