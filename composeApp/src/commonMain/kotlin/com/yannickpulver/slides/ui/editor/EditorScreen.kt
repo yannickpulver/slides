@@ -41,10 +41,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.yannickpulver.slides.ui.filmstrip.Filmstrip
 import compose.icons.TablerIcons
+import compose.icons.tablericons.ArrowLeft
 import compose.icons.tablericons.Plus
 
 @Composable
-fun EditorScreen(viewModel: EditorViewModel) {
+fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
     val state by viewModel.state.collectAsState()
     val focusRequester = remember { FocusRequester() }
 
@@ -170,6 +171,20 @@ fun EditorScreen(viewModel: EditorViewModel) {
                 onExportSlide = { outputDir, scale -> viewModel.exportAllSlides(outputDir, scale) },
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+
+        // Back button
+        if (onBack != null) {
+            androidx.compose.material3.IconButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            ) {
+                Icon(
+                    TablerIcons.ArrowLeft,
+                    contentDescription = "Back to projects",
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
 
         // Export progress overlay

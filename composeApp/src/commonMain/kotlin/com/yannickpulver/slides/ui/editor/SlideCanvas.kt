@@ -67,6 +67,7 @@ import com.yannickpulver.slides.model.SlideTemplate
 import com.yannickpulver.slides.template.boundsForTemplate
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Photo
+import compose.icons.tablericons.PlayerPlay
 import io.github.kdroidfilter.composemediaplayer.VideoPlayerSurface
 import io.github.kdroidfilter.composemediaplayer.rememberVideoPlayerState
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
@@ -469,6 +470,36 @@ private fun VideoSlotContent(
     onImageSizeKnown: (Int, Int) -> Unit,
     onToggleReady: ((() -> Unit)) -> Unit,
 ) {
+    // Don't auto-create the video player — AVFoundation crashes on macOS
+    // when multiple players init concurrently. Only create on user action.
+    var playerActive by remember { mutableStateOf(false) }
+
+    if (!playerActive) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color(0xFF1A1A1A)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                FilledTonalIconButton(
+                    onClick = { playerActive = true },
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Icon(TablerIcons.PlayerPlay, contentDescription = "Play video", modifier = Modifier.size(24.dp))
+                }
+                Text(
+                    element.sourcePath.substringAfterLast("/"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
+        LaunchedEffect(Unit) {
+            onToggleReady { playerActive = true }
+        }
+        return
+    }
+
     val playerState = rememberVideoPlayerState()
 
     // Stop playback before disposal to avoid AVFoundation race condition
@@ -495,11 +526,15 @@ private fun VideoSlotContent(
     }
 
     LaunchedEffect(element.sourcePath) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-            playerState.openUri(element.sourcePath.toFileUri())
-            playerState.loop = true
-            playerState.volume = 0f
-            playerState.play()
+        try {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                playerState.openUri(element.sourcePath.toFileUri())
+                playerState.loop = true
+                playerState.volume = 0f
+                playerState.play()
+            }
+        } catch (e: Exception) {
+            println("Video playback failed: ${e.message}")
         }
     }
 
@@ -624,6 +659,7 @@ fun SlidePreview(
     slide: Slide,
     aspectRatio: AspectRatio,
     modifier: Modifier = Modifier,
+    fillFraction: Float = 0.9f,
 ) {
     val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
     val slotBounds = boundsForTemplate(slide.template)
@@ -631,7 +667,7 @@ fun SlidePreview(
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         BoxWithConstraints(
             modifier = Modifier
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(fillFraction)
                 .aspectRatio(ratio)
                 .background(Color.White)
                 .border(1.dp, Color.LightGray)

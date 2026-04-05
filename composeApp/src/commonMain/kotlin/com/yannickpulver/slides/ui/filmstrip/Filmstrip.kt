@@ -88,6 +88,11 @@ fun Filmstrip(
                 }
             }
 
+            Text(
+                "Export:",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             FilledTonalIconButton(
                 onClick = { exportScale = 1; dirLauncher.launch() },
             ) {
