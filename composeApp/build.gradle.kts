@@ -112,5 +112,9 @@ compose.desktop {
                 entitlementsFile.set(project.file("default-entitlements.plist"))
             }
         }
+
+        buildTypes.release.proguard {
+            isEnabled = false
+        }
     }
 }
