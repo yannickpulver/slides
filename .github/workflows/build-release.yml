@@ -25,9 +25,7 @@ jobs:
           p12-password: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD_MACOS }}
 
       - name: Set default keychain
-        run: |
-          security default-keychain -s signing_temp.keychain
-          security find-identity -v -p codesigning
+        run: security default-keychain -s signing_temp.keychain
 
       - name: Build DMG
         run: ./gradlew packageReleaseDmg
