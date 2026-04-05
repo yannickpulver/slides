@@ -495,10 +495,12 @@ private fun VideoSlotContent(
     }
 
     LaunchedEffect(element.sourcePath) {
-        playerState.openUri(element.sourcePath.toFileUri())
-        playerState.loop = true
-        playerState.volume = 0f
-        playerState.play()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            playerState.openUri(element.sourcePath.toFileUri())
+            playerState.loop = true
+            playerState.volume = 0f
+            playerState.play()
+        }
     }
 
     val iw = videoW?.toFloat() ?: 0f
