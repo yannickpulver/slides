@@ -1,4 +1,5 @@
 name: "Release"
+# Build signed DMG and create GitHub release
 
 on:
   push:
