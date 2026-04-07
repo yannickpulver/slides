@@ -102,6 +102,20 @@ dependencies {
 
 val appVersion = rootProject.file("VERSION").readText().trim()
 
+val generateVersionResource by tasks.registering {
+    val outputDir = layout.buildDirectory.dir("generated/resources/version")
+    outputs.dir(outputDir)
+    doLast {
+        val dir = outputDir.get().asFile
+        dir.mkdirs()
+        dir.resolve("version.txt").writeText(appVersion)
+    }
+}
+
+kotlin.sourceSets.named("jvmMain") {
+    resources.srcDir(generateVersionResource)
+}
+
 compose.desktop {
     application {
         mainClass = "com.yannickpulver.slides.MainKt"
