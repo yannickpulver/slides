@@ -64,6 +64,9 @@ fun main() {
             title = "Slides",
             state = rememberWindowState(width = 1200.dp, height = 800.dp),
         ) {
+            // Extend content into title bar area
+            window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
+            window.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
             val openLauncher = rememberFilePickerLauncher(
                 type = FileKitType.File(extensions = listOf("slides")),
             ) { file ->
