@@ -69,6 +69,9 @@ kotlin {
     }
 }
 
+val appVersion = providers.fileContents(rootProject.layout.projectDirectory.file("VERSION"))
+    .asText.map { it.trim() }
+
 android {
     namespace = "com.yannickpulver.slides"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -78,7 +81,7 @@ android {
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
-        versionName = appVersion
+        versionName = appVersion.get()
     }
     packaging {
         resources {
@@ -100,15 +103,15 @@ dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
 
-val appVersion = rootProject.file("VERSION").readText().trim()
-
 val generateVersionResource by tasks.registering {
+    val version = appVersion
     val outputDir = layout.buildDirectory.dir("generated/resources/version")
+    inputs.property("version", version)
     outputs.dir(outputDir)
     doLast {
         val dir = outputDir.get().asFile
         dir.mkdirs()
-        dir.resolve("version.txt").writeText(appVersion)
+        dir.resolve("version.txt").writeText(version.get())
     }
 }
 
@@ -123,7 +126,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg)
             packageName = "Slides"
-            packageVersion = appVersion
+            packageVersion = appVersion.get()
             includeAllModules = true
             macOS {
                 bundleID = "com.yannickpulver.slides"
