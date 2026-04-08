@@ -15,10 +15,16 @@ data class MediaElement(
     val cropOffsetX: Float = 0f,
     val cropOffsetY: Float = 0f,
     val cropScale: Float = 1f,
+    val fitMode: MediaFitMode = MediaFitMode.FILL,
+    val frameBorderPx: Float = 0f,
+    val backgroundColorArgb: Long = 0xFFFFFFFF,
 )
 
 @Serializable
 enum class MediaType { IMAGE, VIDEO }
+
+@Serializable
+enum class MediaFitMode { FILL, FIT }
 
 @Serializable
 data class ElementBounds(

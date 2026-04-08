@@ -11,11 +11,30 @@ data class Slide(
     val elements: List<MediaElement> = emptyList(),
     val template: SlideTemplate = SlideTemplate.SINGLE,
     val hasChosenTemplate: Boolean = false,
-)
+    val spanGroupId: String? = null,
+    val spanIndex: Int = 0,
+    val spanCount: Int = 1,
+) {
+    val isSpan: Boolean get() = spanGroupId != null
+}
 
 @Serializable
 enum class SlideTemplate(val slotCount: Int) {
     SINGLE(1),
     TWO_VERTICAL(2),
     THREE_VERTICAL(3),
+    SPAN_2(1),
+    SPAN_3(1),
+    SPAN_4(1),
+    SPAN_5(1),
 }
+
+fun SlideTemplate.spanSize(): Int? = when (this) {
+    SlideTemplate.SPAN_2 -> 2
+    SlideTemplate.SPAN_3 -> 3
+    SlideTemplate.SPAN_4 -> 4
+    SlideTemplate.SPAN_5 -> 5
+    else -> null
+}
+
+val SlideTemplate.isSpanTemplate: Boolean get() = spanSize() != null

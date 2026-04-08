@@ -2,6 +2,7 @@ package com.yannickpulver.slides.ui.editor
 
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.MediaElement
+import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.MediaType
 import com.yannickpulver.slides.model.Slide
 import org.bytedeco.ffmpeg.global.avutil
@@ -44,7 +45,10 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
     slide.elements.sortedBy { it.zIndex }.forEach { element ->
         try {
             val sourceImage = ImageIO.read(File(element.sourcePath)) ?: return@forEach
-            drawElementToGraphics(g2d, sourceImage, element, width, height)
+            drawElementToGraphics(
+                g2d, sourceImage, element, width, height, aspectRatio.width, aspectRatio.height,
+                spanIndex = slide.spanIndex, spanCount = slide.spanCount,
+            )
         } catch (_: Exception) {}
     }
 
@@ -104,7 +108,8 @@ private fun exportSlideAsVideo(
             FFmpegFrameGrabber(videoElements.first().sourcePath).apply { start() }
         } catch (_: Exception) { null }
     } else null
-    val hasAudio = audioGrabber != null && audioGrabber.audioChannels > 0
+    val hasAudio = audioGrabber?.audioChannels?.let { it > 0 } == true
+    val audioSource = audioGrabber.takeIf { hasAudio }
 
     val recorder = FFmpegFrameRecorder(outputFile, width, height).apply {
         frameRate = fps
@@ -112,9 +117,9 @@ private fun exportSlideAsVideo(
         videoBitrate = 15_000_000
         pixelFormat = avutil.AV_PIX_FMT_YUV420P
         videoCodecName = "h264_videotoolbox"
-        if (hasAudio) {
-            audioChannels = audioGrabber!!.audioChannels
-            sampleRate = audioGrabber.sampleRate
+        if (audioSource != null) {
+            audioChannels = audioSource.audioChannels
+            sampleRate = audioSource.sampleRate
             audioCodecName = "aac"
             audioBitrate = 192_000
         }
@@ -150,16 +155,21 @@ private fun exportSlideAsVideo(
                     MediaType.IMAGE -> imageCache[element]
                     MediaType.VIDEO -> videoFrameCache[element.id]
                 }
-                if (img != null) drawElementToGraphics(g2d, img, element, width, height)
+                if (img != null) {
+                    drawElementToGraphics(
+                        g2d, img, element, width, height, aspectRatio.width, aspectRatio.height,
+                        spanIndex = slide.spanIndex, spanCount = slide.spanCount,
+                    )
+                }
             }
 
             g2d.dispose()
             recorder.record(converter.convert(canvas))
 
             // Record audio samples up to this timestamp
-            if (hasAudio && audioGrabber != null) {
-                while (audioGrabber.timestamp < targetUs + 50_000) {
-                    val samples = audioGrabber.grabSamples() ?: break
+            if (audioSource != null) {
+                while (audioSource.timestamp < targetUs + 50_000) {
+                    val samples = audioSource.grabSamples() ?: break
                     if (samples.samples != null) {
                         recorder.recordSamples(*samples.samples)
                     }
@@ -196,32 +206,159 @@ private fun drawElementToGraphics(
     element: MediaElement,
     canvasWidth: Int,
     canvasHeight: Int,
+    logicalCanvasWidth: Int,
+    logicalCanvasHeight: Int,
+    spanIndex: Int = 0,
+    spanCount: Int = 1,
 ) {
     val slotX = (element.bounds.x * canvasWidth).roundToInt()
     val slotY = (element.bounds.y * canvasHeight).roundToInt()
     val slotW = (element.bounds.width * canvasWidth).roundToInt()
     val slotH = (element.bounds.height * canvasHeight).roundToInt()
 
+    g2d.color = awtColor(element.backgroundColorArgb)
+    g2d.fillRect(slotX, slotY, slotW, slotH)
+
     val prevClip = g2d.clip
     g2d.clipRect(slotX, slotY, slotW, slotH)
 
     val imgW = sourceImage.width.toFloat()
     val imgH = sourceImage.height.toFloat()
-    val fillScale = maxOf(slotW / imgW, slotH / imgH)
-    val totalScale = fillScale * element.cropScale
+    val effectiveSlotW = slotW.toFloat() * spanCount
+    val effectiveLogicalW = logicalCanvasWidth * element.bounds.width * spanCount
+    val frame = computeExportFrame(
+        slotWidth = effectiveSlotW,
+        slotHeight = slotH.toFloat(),
+        mediaWidth = imgW,
+        mediaHeight = imgH,
+        element = element,
+        logicalSlotWidth = effectiveLogicalW,
+        logicalSlotHeight = logicalCanvasHeight * element.bounds.height,
+    )
+    val sliceShiftX = frame.shiftX + (effectiveSlotW - slotW.toFloat()) / 2f - (spanIndex * slotW)
+    val drawW = frame.drawWidth.roundToInt()
+    val drawH = frame.drawHeight.roundToInt()
+    val centerX = slotX + (slotW - drawW) / 2 + sliceShiftX.roundToInt()
+    val centerY = slotY + (slotH - drawH) / 2 + frame.shiftY.roundToInt()
 
-    val drawW = (imgW * totalScale).roundToInt()
-    val drawH = (imgH * totalScale).roundToInt()
-
-    // Offsets are normalized fractions of slot size
-    val centerX = slotX + (slotW - drawW) / 2 + (element.cropOffsetX * slotW).roundToInt()
-    val centerY = slotY + (slotH - drawH) / 2 + (element.cropOffsetY * slotH).roundToInt()
-
-    // Progressive downscale for quality — halve until close to target, then final resize
     val scaled = progressiveScale(sourceImage, drawW, drawH)
     g2d.drawImage(scaled, centerX, centerY, drawW, drawH, null)
     g2d.clip = prevClip
+    drawFrameMasks(
+        g2d = g2d,
+        slotX = slotX,
+        slotY = slotY,
+        slotWidth = slotW,
+        slotHeight = slotH,
+        inset = computeFrameInsetPx(
+            slotWidth = effectiveSlotW,
+            slotHeight = slotH.toFloat(),
+            logicalSlotWidth = effectiveLogicalW,
+            logicalSlotHeight = logicalCanvasHeight * element.bounds.height,
+            frameBorderPx = element.frameBorderPx,
+        ).roundToInt(),
+        color = awtColor(element.backgroundColorArgb),
+        spanIndex = spanIndex,
+        spanCount = spanCount,
+    )
 }
+
+private data class ExportFrame(
+    val drawWidth: Float,
+    val drawHeight: Float,
+    val shiftX: Float,
+    val shiftY: Float,
+)
+
+private fun computeFrameInsetPx(
+    slotWidth: Float,
+    slotHeight: Float,
+    logicalSlotWidth: Float,
+    logicalSlotHeight: Float,
+    frameBorderPx: Float,
+): Float {
+    val insetScale = minOf(
+        slotWidth.coerceAtLeast(1f) / logicalSlotWidth.coerceAtLeast(1f),
+        slotHeight.coerceAtLeast(1f) / logicalSlotHeight.coerceAtLeast(1f),
+    )
+    return frameBorderPx.coerceIn(0f, MAX_FRAME_BORDER_PX) * insetScale
+}
+
+private fun computeExportFrame(
+    slotWidth: Float,
+    slotHeight: Float,
+    mediaWidth: Float,
+    mediaHeight: Float,
+    element: MediaElement,
+    logicalSlotWidth: Float,
+    logicalSlotHeight: Float,
+): ExportFrame {
+    val safeSlotWidth = slotWidth.coerceAtLeast(1f)
+    val safeSlotHeight = slotHeight.coerceAtLeast(1f)
+    val safeMediaWidth = mediaWidth.coerceAtLeast(1f)
+    val safeMediaHeight = mediaHeight.coerceAtLeast(1f)
+    val inset = computeFrameInsetPx(
+        slotWidth = safeSlotWidth,
+        slotHeight = safeSlotHeight,
+        logicalSlotWidth = logicalSlotWidth,
+        logicalSlotHeight = logicalSlotHeight,
+        frameBorderPx = element.frameBorderPx,
+    )
+    val availableWidth = (safeSlotWidth - inset * 2f).coerceAtLeast(1f)
+    val availableHeight = (safeSlotHeight - inset * 2f).coerceAtLeast(1f)
+
+    return if (element.fitMode == MediaFitMode.FIT) {
+        val fitScale = minOf(availableWidth / safeMediaWidth, availableHeight / safeMediaHeight)
+        ExportFrame(
+            drawWidth = safeMediaWidth * fitScale,
+            drawHeight = safeMediaHeight * fitScale,
+            shiftX = 0f,
+            shiftY = 0f,
+        )
+    } else {
+        val fillScale = maxOf(availableWidth / safeMediaWidth, availableHeight / safeMediaHeight)
+        ExportFrame(
+            drawWidth = safeMediaWidth * fillScale * element.cropScale,
+            drawHeight = safeMediaHeight * fillScale * element.cropScale,
+            // cropOffsetX is normalized to single-slot width, so multiply by full virtual width
+            shiftX = element.cropOffsetX * safeSlotWidth,
+            shiftY = element.cropOffsetY * safeSlotHeight,
+        )
+    }
+}
+
+private fun awtColor(argb: Long): java.awt.Color {
+    val alpha = ((argb shr 24) and 0xFF).toInt()
+    val red = ((argb shr 16) and 0xFF).toInt()
+    val green = ((argb shr 8) and 0xFF).toInt()
+    val blue = (argb and 0xFF).toInt()
+    return java.awt.Color(red, green, blue, alpha)
+}
+
+private fun drawFrameMasks(
+    g2d: Graphics2D,
+    slotX: Int,
+    slotY: Int,
+    slotWidth: Int,
+    slotHeight: Int,
+    inset: Int,
+    color: java.awt.Color,
+    spanIndex: Int = 0,
+    spanCount: Int = 1,
+) {
+    if (inset <= 0) return
+    g2d.color = color
+    // Top — always
+    g2d.fillRect(slotX, slotY, slotWidth, inset)
+    // Bottom — always
+    g2d.fillRect(slotX, slotY + slotHeight - inset, slotWidth, inset)
+    // Left — only first in span
+    if (spanIndex == 0) g2d.fillRect(slotX, slotY, inset, slotHeight)
+    // Right — only last in span
+    if (spanIndex == spanCount - 1) g2d.fillRect(slotX + slotWidth - inset, slotY, inset, slotHeight)
+}
+
+private const val MAX_FRAME_BORDER_PX = 240f
 
 private fun progressiveScale(src: BufferedImage, targetW: Int, targetH: Int): BufferedImage {
     var w = src.width

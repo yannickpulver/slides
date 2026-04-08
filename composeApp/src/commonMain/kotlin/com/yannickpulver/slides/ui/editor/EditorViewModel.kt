@@ -3,13 +3,19 @@ package com.yannickpulver.slides.ui.editor
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.yannickpulver.slides.model.AspectRatio
+import com.yannickpulver.slides.openInFinder
 import com.yannickpulver.slides.model.ElementBounds
 import com.yannickpulver.slides.model.MediaElement
+import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.MediaType
 import com.yannickpulver.slides.model.Project
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.model.SlideTemplate
+import com.yannickpulver.slides.model.isSpanTemplate
+import com.yannickpulver.slides.model.spanSize
 import com.yannickpulver.slides.template.boundsForTemplate
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +37,12 @@ data class EditorState(
 
     val currentSlideIndex: Int
         get() = project.slides.indexOfFirst { it.id == (selectedSlideId ?: project.slides.firstOrNull()?.id) }
+
+    val currentSpanGroup: List<Slide>?
+        get() {
+            val gid = currentSlide?.spanGroupId ?: return null
+            return project.slides.filter { it.spanGroupId == gid }.sortedBy { it.spanIndex }
+        }
 }
 
 class EditorViewModel : ViewModel() {
@@ -56,12 +68,20 @@ class EditorViewModel : ViewModel() {
 
     fun removeSlide(slideId: String) {
         _state.update { state ->
-            val remaining = state.project.slides.filter { it.id != slideId }
-            if (remaining.isEmpty()) return@update state // Don't remove last slide
+            val slide = state.project.slides.find { it.id == slideId }
+            val gid = slide?.spanGroupId
+            // Remove entire span group if part of one
+            val idsToRemove = if (gid != null) {
+                state.project.slides.filter { it.spanGroupId == gid }.map { it.id }.toSet()
+            } else {
+                setOf(slideId)
+            }
+            val remaining = state.project.slides.filter { it.id !in idsToRemove }
+            if (remaining.isEmpty()) return@update state
             state.copy(
                 project = state.project.copy(slides = remaining),
-                selectedSlideId = if (state.selectedSlideId == slideId) remaining.firstOrNull()?.id else state.selectedSlideId,
-                selectedElementId = if (state.selectedSlideId == slideId) null else state.selectedElementId,
+                selectedSlideId = if (state.selectedSlideId in idsToRemove) remaining.firstOrNull()?.id else state.selectedSlideId,
+                selectedElementId = if (state.selectedSlideId in idsToRemove) null else state.selectedElementId,
             )
         }
     }
@@ -126,10 +146,19 @@ class EditorViewModel : ViewModel() {
             }
 
             val updatedSlide = slide.copy(template = autoTemplate, elements = finalElements)
+            val gid = slide.spanGroupId
+            val updatedSlides = state.project.slides.map { s ->
+                when {
+                    s.id == slide.id -> updatedSlide
+                    // Clone element to other slides in span group
+                    gid != null && s.spanGroupId == gid -> {
+                        s.copy(elements = listOf(element.copy(id = s.id + "_el", bounds = bounds)))
+                    }
+                    else -> s
+                }
+            }
             state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
-                ),
+                project = state.project.copy(slides = updatedSlides),
                 selectedElementId = element.id,
             )
         }
@@ -167,20 +196,66 @@ class EditorViewModel : ViewModel() {
     fun updateElementCrop(elementId: String, offsetX: Float, offsetY: Float, scale: Float) {
         _state.update { state ->
             val slide = state.currentSlide ?: return@update state
-            val updatedSlide = slide.copy(
-                elements = slide.elements.map {
-                    if (it.id == elementId) it.copy(
-                        cropOffsetX = offsetX,
-                        cropOffsetY = offsetY,
-                        cropScale = scale,
-                    ) else it
+            val gid = slide.spanGroupId
+
+            if (gid != null) {
+                // Sync crop to all elements in the span group
+                val updatedSlides = state.project.slides.map { s ->
+                    if (s.spanGroupId == gid) {
+                        s.copy(elements = s.elements.map { it.copy(cropOffsetX = offsetX, cropOffsetY = offsetY, cropScale = scale) })
+                    } else s
                 }
+                state.copy(project = state.project.copy(slides = updatedSlides))
+            } else {
+                val updatedSlide = slide.copy(
+                    elements = slide.elements.map {
+                        if (it.id == elementId) it.copy(cropOffsetX = offsetX, cropOffsetY = offsetY, cropScale = scale) else it
+                    }
+                )
+                state.copy(
+                    project = state.project.copy(
+                        slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
+                    ),
+                )
+            }
+        }
+    }
+
+    fun updateElementStyle(
+        elementId: String,
+        fitMode: MediaFitMode? = null,
+        frameBorderPx: Float? = null,
+        backgroundColorArgb: Long? = null,
+    ) {
+        _state.update { state ->
+            val slide = state.currentSlide ?: return@update state
+            val gid = slide.spanGroupId
+
+            fun applyStyle(el: MediaElement) = el.copy(
+                fitMode = fitMode ?: el.fitMode,
+                frameBorderPx = frameBorderPx ?: el.frameBorderPx,
+                backgroundColorArgb = backgroundColorArgb ?: el.backgroundColorArgb,
             )
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
-                ),
-            )
+
+            if (gid != null) {
+                val updatedSlides = state.project.slides.map { s ->
+                    if (s.spanGroupId == gid) {
+                        s.copy(elements = s.elements.map { applyStyle(it) })
+                    } else s
+                }
+                state.copy(project = state.project.copy(slides = updatedSlides))
+            } else {
+                val updatedSlide = slide.copy(
+                    elements = slide.elements.map {
+                        if (it.id == elementId) applyStyle(it) else it
+                    }
+                )
+                state.copy(
+                    project = state.project.copy(
+                        slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
+                    ),
+                )
+            }
         }
     }
 
@@ -218,6 +293,7 @@ class EditorViewModel : ViewModel() {
                 }
             }
             _state.update { it.copy(exportProgress = null) }
+            openInFinder(outputDir)
         }
     }
 
@@ -239,20 +315,98 @@ class EditorViewModel : ViewModel() {
         }
     }
 
+    @OptIn(ExperimentalUuidApi::class)
     fun applyTemplate(template: SlideTemplate) {
         _state.update { state ->
             val slide = state.currentSlide ?: return@update state
-            val templateBounds = boundsForTemplate(template)
-            val updatedElements = slide.elements.mapIndexed { index, element ->
-                val bounds = templateBounds.getOrElse(index) { element.bounds }
-                element.copy(bounds = bounds)
+            val spanSize = template.spanSize()
+
+            // Tear down existing span group if switching away
+            val slidesAfterTeardown = if (slide.isSpan && (spanSize == null || template != slide.template)) {
+                val gid = slide.spanGroupId!!
+                state.project.slides.filter { it.spanGroupId != gid || it.spanIndex == 0 }.map {
+                    if (it.spanGroupId == gid) it.copy(spanGroupId = null, spanIndex = 0, spanCount = 1) else it
+                }
+            } else {
+                state.project.slides
             }
-            val updatedSlide = slide.copy(template = template, elements = updatedElements, hasChosenTemplate = true)
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
-                ),
-            )
+
+            if (spanSize != null) {
+                // Build or resize span group
+                val existingGroupId = slide.spanGroupId
+                val groupId = existingGroupId ?: Uuid.random().toString()
+                val existingCount = if (existingGroupId != null) slide.spanCount else 1
+                val sourceElement = slide.elements.firstOrNull()
+                val bounds = ElementBounds(0f, 0f, 1f, 1f)
+
+                val slideIdx = slidesAfterTeardown.indexOfFirst { it.id == slide.id }
+                val updatedFirst = slide.copy(
+                    template = template,
+                    hasChosenTemplate = true,
+                    spanGroupId = groupId,
+                    spanIndex = 0,
+                    spanCount = spanSize,
+                    elements = slide.elements.map { it.copy(bounds = bounds) }.ifEmpty { slide.elements },
+                )
+
+                // Create new slides to reach spanSize
+                val newSlides = (existingCount until spanSize).map { i ->
+                    Slide(
+                        template = template,
+                        hasChosenTemplate = true,
+                        spanGroupId = groupId,
+                        spanIndex = i,
+                        spanCount = spanSize,
+                        elements = if (sourceElement != null) listOf(
+                            sourceElement.copy(id = Uuid.random().toString(), bounds = bounds)
+                        ) else emptyList(),
+                    )
+                }
+
+                // Update existing group slides' spanCount if resizing
+                val updatedSlides = slidesAfterTeardown.toMutableList()
+                updatedSlides[slideIdx] = updatedFirst
+                // Update any existing group members (for resize case)
+                for (j in updatedSlides.indices) {
+                    val s = updatedSlides[j]
+                    if (s.spanGroupId == groupId && s.id != slide.id) {
+                        updatedSlides[j] = s.copy(template = template, spanCount = spanSize)
+                    }
+                }
+                // If shrinking, remove excess slides
+                if (existingGroupId != null && spanSize < existingCount) {
+                    updatedSlides.removeAll { it.spanGroupId == groupId && it.spanIndex >= spanSize }
+                }
+                // Insert new slides after the last group member
+                val insertIdx = updatedSlides.indexOfLast { it.spanGroupId == groupId } + 1
+                updatedSlides.addAll(insertIdx, newSlides)
+
+                state.copy(
+                    project = state.project.copy(slides = updatedSlides),
+                    selectedSlideId = updatedFirst.id,
+                )
+            } else {
+                // Non-span template
+                val templateBounds = boundsForTemplate(template)
+                val currentSlide = slidesAfterTeardown.find { it.id == slide.id } ?: slide
+                val updatedElements = currentSlide.elements.mapIndexed { index, element ->
+                    val b = templateBounds.getOrElse(index) { element.bounds }
+                    element.copy(bounds = b)
+                }
+                val updatedSlide = currentSlide.copy(
+                    template = template,
+                    elements = updatedElements,
+                    hasChosenTemplate = true,
+                    spanGroupId = null,
+                    spanIndex = 0,
+                    spanCount = 1,
+                )
+                state.copy(
+                    project = state.project.copy(
+                        slides = slidesAfterTeardown.map { if (it.id == slide.id) updatedSlide else it }
+                    ),
+                )
+            }
         }
     }
 }

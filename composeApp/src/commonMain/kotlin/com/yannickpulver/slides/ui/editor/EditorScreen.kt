@@ -47,10 +47,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
+import com.yannickpulver.slides.model.Slide
+import com.yannickpulver.slides.model.SlideTemplate
+import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.ui.filmstrip.Filmstrip
 import compose.icons.TablerIcons
 import compose.icons.tablericons.ArrowLeft
-import compose.icons.tablericons.Download
 import compose.icons.tablericons.Plus
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import io.github.vinceglb.filekit.path
@@ -59,6 +61,15 @@ import io.github.vinceglb.filekit.path
 fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
     val state by viewModel.state.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    val currentSlide = state.currentSlide
+    val spanGroup = state.currentSpanGroup
+    val isSpanActive = spanGroup != null && spanGroup.size > 1
+    val singleImageElement = currentSlide?.let { slide ->
+        if (slide.template == SlideTemplate.SINGLE || slide.template.isSpanTemplate) {
+            slide.elements.firstOrNull()
+        } else null
+    }
+    val showSingleImageControls = singleImageElement != null
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -80,16 +91,27 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
         Column(modifier = Modifier.fillMaxSize()) {
             val slides = state.project.slides
             val currentIdx = state.currentSlideIndex
-            val prevSlide = slides.getOrNull(currentIdx - 1)
-            val nextSlide = slides.getOrNull(currentIdx + 1)
             val aspectRatio = state.project.aspectRatio
+
+            // For span groups, prev/next should skip to outside the group
+            val prevSlide: Slide?
+            val nextSlide: Slide?
+            if (isSpanActive && spanGroup != null) {
+                val firstIdx = slides.indexOf(spanGroup.first())
+                val lastIdx = slides.indexOf(spanGroup.last())
+                prevSlide = slides.getOrNull(firstIdx - 1)
+                nextSlide = slides.getOrNull(lastIdx + 1)
+            } else {
+                prevSlide = slides.getOrNull(currentIdx - 1)
+                nextSlide = slides.getOrNull(currentIdx + 1)
+            }
 
             BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .padding(top = 48.dp),
+                    .padding(top = 74.dp),
             ) {
                 val density = LocalDensity.current
                 val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
@@ -97,31 +119,58 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 val shiftPx = with(density) { (slideWidth + 24.dp).toPx() }
                 val edgeWidth = (maxWidth - slideWidth) / 2
 
-                // Current slide (full size)
-                SlideCanvas(
-                    slide = state.currentSlide,
-                    aspectRatio = aspectRatio,
-                    selectedElementId = state.selectedElementId,
-                    currentTemplate = state.currentSlide?.template,
-                    onElementClick = viewModel::selectElement,
-                    onCanvasClick = { viewModel.selectElement(null) },
-                    onAddImageAtSlot = { slotIndex, path -> viewModel.addElementAtSlot(slotIndex, path) },
-                    onTemplateSelected = { viewModel.applyTemplate(it) },
-                    onElementCropChanged = { id, ox, oy, s -> viewModel.updateElementCrop(id, ox, oy, s) },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                // Current slide (full size) or span preview
+                if (isSpanActive && spanGroup != null) {
+                    SpanCanvasPreview(
+                        slides = spanGroup,
+                        aspectRatio = aspectRatio,
+                        onElementCropChanged = { id, ox, oy, s -> viewModel.updateElementCrop(id, ox, oy, s) },
+                        onAddImageAtSlot = { slotIndex, path -> viewModel.addElementAtSlot(slotIndex, path) },
+                        onTemplateSelected = { viewModel.applyTemplate(it) },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    SlideCanvas(
+                        slide = state.currentSlide,
+                        aspectRatio = aspectRatio,
+                        selectedElementId = state.selectedElementId,
+                        currentTemplate = state.currentSlide?.template,
+                        onElementClick = viewModel::selectElement,
+                        onCanvasClick = { viewModel.selectElement(null) },
+                        onAddImageAtSlot = { slotIndex, path -> viewModel.addElementAtSlot(slotIndex, path) },
+                        onTemplateSelected = { viewModel.applyTemplate(it) },
+                        onElementCropChanged = { id, ox, oy, s -> viewModel.updateElementCrop(id, ox, oy, s) },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
 
-                // Previous slide visual
-                if (prevSlide != null) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .graphicsLayer { translationX = -shiftPx }
-                            .alpha(0.3f),
-                    ) {
-                        SlidePreview(slide = prevSlide, aspectRatio = aspectRatio)
+                // Hide neighbor previews when span is active (they'd overlap the wide canvas)
+                if (!isSpanActive) {
+                    // Previous slide visual
+                    if (prevSlide != null) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .graphicsLayer { translationX = -shiftPx }
+                                .alpha(0.3f),
+                        ) {
+                            SlidePreview(slide = prevSlide, aspectRatio = aspectRatio)
+                        }
+                    }
+
+                    // Next slide visual
+                    if (nextSlide != null) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .graphicsLayer { translationX = shiftPx }
+                                .alpha(0.3f),
+                        ) {
+                            SlidePreview(slide = nextSlide, aspectRatio = aspectRatio)
+                        }
                     }
                 }
+
                 // Left edge click area
                 if (prevSlide != null) {
                     Box(
@@ -137,17 +186,6 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     )
                 }
 
-                // Next slide visual
-                if (nextSlide != null) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .graphicsLayer { translationX = shiftPx }
-                            .alpha(0.3f),
-                    ) {
-                        SlidePreview(slide = nextSlide, aspectRatio = aspectRatio)
-                    }
-                }
                 // Right edge click area (nav or add)
                 Box(
                     modifier = Modifier
@@ -178,6 +216,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             Filmstrip(
                 slides = slides,
                 selectedSlideId = state.selectedSlideId ?: slides.firstOrNull()?.id,
+                selectedSpanGroupId = currentSlide?.spanGroupId,
                 aspectRatio = aspectRatio,
                 onSlideSelect = viewModel::selectSlide,
                 onAddSlide = viewModel::addSlide,
@@ -190,7 +229,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
         if (onBack != null) {
             IconButton(
                 onClick = onBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp).pointerHoverIcon(PointerIcon.Hand),
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 36.dp).pointerHoverIcon(PointerIcon.Hand),
             ) {
                 Icon(
                     TablerIcons.ArrowLeft,
@@ -198,6 +237,24 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     modifier = Modifier.size(20.dp),
                 )
             }
+        }
+
+        if (showSingleImageControls) {
+            SingleImageControls(
+                element = singleImageElement,
+                onFitModeChanged = { mode ->
+                    viewModel.updateElementStyle(singleImageElement.id, fitMode = mode)
+                },
+                onFrameBorderPxChanged = { borderPx ->
+                    viewModel.updateElementStyle(singleImageElement.id, frameBorderPx = borderPx)
+                },
+                onBackgroundColorChanged = { color ->
+                    viewModel.updateElementStyle(singleImageElement.id, backgroundColorArgb = color)
+                },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 38.dp),
+            )
         }
 
         // Export button top-right
@@ -208,7 +265,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 dir?.path?.let { viewModel.exportAllSlides(it, exportScale) }
             }
 
-            Box(modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
+            Box(modifier = Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 36.dp)) {
                 androidx.compose.material3.TextButton(
                     onClick = { exportMenuExpanded = true },
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),

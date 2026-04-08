@@ -5,3 +5,7 @@ class JVMPlatform: Platform {
 }
 
 actual fun getPlatform(): Platform = JVMPlatform()
+
+actual fun openInFinder(path: String) {
+    java.awt.Desktop.getDesktop().open(java.io.File(path))
+}

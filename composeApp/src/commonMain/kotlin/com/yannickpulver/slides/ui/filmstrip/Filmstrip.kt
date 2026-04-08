@@ -46,6 +46,7 @@ import compose.icons.tablericons.X
 fun Filmstrip(
     slides: List<Slide>,
     selectedSlideId: String?,
+    selectedSpanGroupId: String? = null,
     aspectRatio: AspectRatio,
     onSlideSelect: (String) -> Unit,
     onAddSlide: () -> Unit,
@@ -66,10 +67,12 @@ fun Filmstrip(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 items(slides, key = { it.id }) { slide ->
+                    val isInGroup = selectedSpanGroupId != null && slide.spanGroupId == selectedSpanGroupId
                     SlideThumbnail(
                         slide = slide,
                         ratio = ratio,
                         isSelected = slide.id == selectedSlideId,
+                        isInSelectedGroup = isInGroup && slide.id != selectedSlideId,
                         onClick = { onSlideSelect(slide.id) },
                         onRemove = { onRemoveSlide(slide.id) },
                     )
@@ -90,11 +93,16 @@ private fun SlideThumbnail(
     slide: Slide,
     ratio: Float,
     isSelected: Boolean,
+    isInSelectedGroup: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.LightGray
-    val borderWidth = if (isSelected) 2.dp else 1.dp
+    val borderColor = when {
+        isSelected -> MaterialTheme.colorScheme.primary
+        isInSelectedGroup -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+        else -> Color.LightGray
+    }
+    val borderWidth = if (isSelected || isInSelectedGroup) 2.dp else 1.dp
 
     Box {
         Column(

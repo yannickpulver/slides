@@ -7,3 +7,7 @@ class AndroidPlatform : Platform {
 }
 
 actual fun getPlatform(): Platform = AndroidPlatform()
+
+actual fun openInFinder(path: String) {
+    // No-op on Android
+}

@@ -16,4 +16,8 @@ fun boundsForTemplate(template: SlideTemplate): List<ElementBounds> = when (temp
         ElementBounds(0f, 1f / 3f, 1f, 1f / 3f),
         ElementBounds(0f, 2f / 3f, 1f, 1f / 3f),
     )
+    SlideTemplate.SPAN_2, SlideTemplate.SPAN_3,
+    SlideTemplate.SPAN_4, SlideTemplate.SPAN_5 -> listOf(
+        ElementBounds(0f, 0f, 1f, 1f)
+    )
 }
