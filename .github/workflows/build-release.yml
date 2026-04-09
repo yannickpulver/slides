@@ -30,12 +30,15 @@ jobs:
       - name: Build JVM JAR
         run: ./gradlew :composeApp:jvmJar
 
-      - name: Build, sign and publish with Conveyor
+      - name: Build, sign, notarize and publish with Conveyor
         uses: hydraulic-software/conveyor/actions/build@v22.0
         with:
           command: make copied-site
           signing_key: ${{ secrets.SIGNING_KEY }}
           agree_to_license: 1
+          extra_flags: >-
+            -Kapp.mac.notarization.issuer-id=${{ env.APPLE_NOTARY_ISSUER_ID }}
+            -Kapp.mac.notarization.key-id=${{ env.APPLE_NOTARY_KEY_ID }}
+            -Kapp.mac.notarization.private-key=/tmp/AuthKey.p8
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_NOTARY_KEY: /tmp/AuthKey.p8
