@@ -33,7 +33,7 @@ jobs:
           echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key' > /tmp/AuthKey.p8
 
       - name: Build, sign and publish with Conveyor
-        uses: hydraulic-software/conveyor/actions/build@v9.2
+        uses: hydraulic-software/conveyor/actions/build@v22.0
         with:
           command: make copied-site
           signing_key: ${{ secrets.SIGNING_KEY }}
