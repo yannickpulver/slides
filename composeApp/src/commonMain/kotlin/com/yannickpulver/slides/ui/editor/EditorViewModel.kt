@@ -316,6 +316,27 @@ class EditorViewModel : ViewModel() {
     }
 
     @OptIn(ExperimentalUuidApi::class)
+    fun moveSlide(slideId: String, targetIndex: Int) {
+        _state.update { state ->
+            val slides = state.project.slides
+            val slide = slides.find { it.id == slideId } ?: return@update state
+            val gid = slide.spanGroupId
+
+            val slidesToMove = if (gid != null) {
+                slides.filter { it.spanGroupId == gid }.sortedBy { it.spanIndex }
+            } else {
+                listOf(slide)
+            }
+
+            val remaining = slides.toMutableList().apply { removeAll(slidesToMove.toSet()) }
+            val insertAt = targetIndex.coerceIn(0, remaining.size)
+            remaining.addAll(insertAt, slidesToMove)
+
+            state.copy(project = state.project.copy(slides = remaining))
+        }
+    }
+
+    @OptIn(ExperimentalUuidApi::class)
     fun applyTemplate(template: SlideTemplate) {
         _state.update { state ->
             val slide = state.currentSlide ?: return@update state

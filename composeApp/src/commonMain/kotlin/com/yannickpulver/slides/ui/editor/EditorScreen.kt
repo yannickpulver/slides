@@ -41,7 +41,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -78,7 +78,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             .fillMaxSize()
             .focusRequester(focusRequester)
             .focusable()
-            .onPreviewKeyEvent { event ->
+            .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
                     when (event.key) {
                         Key.DirectionLeft -> { viewModel.selectPreviousSlide(); true }
@@ -221,6 +221,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 onSlideSelect = viewModel::selectSlide,
                 onAddSlide = viewModel::addSlide,
                 onRemoveSlide = viewModel::removeSlide,
+                onMoveSlide = viewModel::moveSlide,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

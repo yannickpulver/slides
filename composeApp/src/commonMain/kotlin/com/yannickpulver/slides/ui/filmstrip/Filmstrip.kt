@@ -3,6 +3,7 @@ package com.yannickpulver.slides.ui.filmstrip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,26 +22,31 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.ui.editor.SlidePreview
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Plus
 import compose.icons.tablericons.X
+import kotlin.math.roundToInt
 
 @Composable
 fun Filmstrip(
@@ -51,9 +57,30 @@ fun Filmstrip(
     onSlideSelect: (String) -> Unit,
     onAddSlide: () -> Unit,
     onRemoveSlide: (String) -> Unit,
+    onMoveSlide: (slideId: String, targetIndex: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
+    val density = LocalDensity.current
+    val itemWidthPx = with(density) { (60.dp + 8.dp).toPx() }
+
+    var draggingSlideId by remember { mutableStateOf<String?>(null) }
+    var dragOffsetX by remember { mutableStateOf(0f) }
+    var originalGroupFirstIdx by remember { mutableStateOf(0) }
+    var accumulatedMoveCount by remember { mutableStateOf(0) }
+
+    val slidesState = rememberUpdatedState(slides)
+    val onMoveSlideState = rememberUpdatedState(onMoveSlide)
+
+    val dragGroupIds = remember(draggingSlideId, slides) {
+        val dId = draggingSlideId ?: return@remember emptySet<String>()
+        val slide = slides.find { it.id == dId } ?: return@remember emptySet<String>()
+        if (slide.spanGroupId != null) {
+            slides.filter { it.spanGroupId == slide.spanGroupId }.map { it.id }.toSet()
+        } else {
+            setOf(dId)
+        }
+    }
 
     Surface(modifier = modifier, tonalElevation = 2.dp) {
         Row(
@@ -68,6 +95,8 @@ fun Filmstrip(
             ) {
                 items(slides, key = { it.id }) { slide ->
                     val isInGroup = selectedSpanGroupId != null && slide.spanGroupId == selectedSpanGroupId
+                    val isDragging = slide.id in dragGroupIds
+
                     SlideThumbnail(
                         slide = slide,
                         ratio = ratio,
@@ -75,6 +104,58 @@ fun Filmstrip(
                         isInSelectedGroup = isInGroup && slide.id != selectedSlideId,
                         onClick = { onSlideSelect(slide.id) },
                         onRemove = { onRemoveSlide(slide.id) },
+                        modifier = Modifier
+                            .then(if (!isDragging) Modifier.animateItem() else Modifier)
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .graphicsLayer {
+                                if (isDragging) {
+                                    translationX = dragOffsetX - accumulatedMoveCount * itemWidthPx
+                                    alpha = 0.9f
+                                    scaleX = 1.05f
+                                    scaleY = 1.05f
+                                }
+                            }
+                            .pointerInput(slide.id) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        draggingSlideId = slide.id
+                                        dragOffsetX = 0f
+                                        accumulatedMoveCount = 0
+                                        val cs = slidesState.value
+                                        val gid = cs.find { it.id == slide.id }?.spanGroupId
+                                        originalGroupFirstIdx = if (gid != null) {
+                                            cs.indexOfFirst { it.spanGroupId == gid }
+                                        } else {
+                                            cs.indexOfFirst { it.id == slide.id }
+                                        }
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetX += dragAmount.x
+                                        val desiredMoveCount = (dragOffsetX / itemWidthPx).roundToInt()
+                                        if (desiredMoveCount != accumulatedMoveCount) {
+                                            val cs = slidesState.value
+                                            val dId = draggingSlideId ?: return@detectDragGestures
+                                            val dSlide = cs.find { it.id == dId } ?: return@detectDragGestures
+                                            val gid = dSlide.spanGroupId
+                                            val groupSize = if (gid != null) cs.count { it.spanGroupId == gid } else 1
+                                            val targetIdx = (originalGroupFirstIdx + desiredMoveCount).coerceIn(0, cs.size - groupSize)
+                                            onMoveSlideState.value(dId, targetIdx)
+                                            accumulatedMoveCount = desiredMoveCount
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        draggingSlideId = null
+                                        dragOffsetX = 0f
+                                        accumulatedMoveCount = 0
+                                    },
+                                    onDragCancel = {
+                                        draggingSlideId = null
+                                        dragOffsetX = 0f
+                                        accumulatedMoveCount = 0
+                                    },
+                                )
+                            },
                     )
                 }
 
@@ -96,6 +177,7 @@ private fun SlideThumbnail(
     isInSelectedGroup: Boolean = false,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val borderColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
@@ -104,7 +186,7 @@ private fun SlideThumbnail(
     }
     val borderWidth = if (isSelected || isInSelectedGroup) 2.dp else 1.dp
 
-    Box {
+    Box(modifier = modifier) {
         Column(
             modifier = Modifier
                 .width(60.dp)
