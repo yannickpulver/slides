@@ -32,6 +32,9 @@ jobs:
           echo "key_id=$(echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key_id')" >> $GITHUB_OUTPUT
           echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key' > /tmp/AuthKey.p8
 
+      - name: Build JVM JAR
+        run: ./gradlew :composeApp:jvmJar
+
       - name: Build, sign and publish with Conveyor
         uses: hydraulic-software/conveyor/actions/build@v22.0
         with:
