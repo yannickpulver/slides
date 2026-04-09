@@ -1,6 +1,5 @@
 package com.yannickpulver.slides
 
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -13,35 +12,20 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.yannickpulver.slides.data.ProjectStore
-import com.yannickpulver.slides.data.UpdateChecker
-import com.yannickpulver.slides.data.UpdateInfo
 import com.yannickpulver.slides.model.Project
 import com.yannickpulver.slides.model.ProjectEntry
 import com.yannickpulver.slides.model.Slide
-import com.yannickpulver.slides.ui.UpdateDialog
 import com.yannickpulver.slides.ui.editor.EditorViewModel
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.dialogs.compose.rememberFileSaverLauncher
 import io.github.vinceglb.filekit.path
-import java.awt.Desktop
 import java.io.File
-import java.net.URI
 
 fun main() {
     FileKit.init(appId = "com.yannickpulver.slides")
     application {
-        var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
-        var showUpdateDialog by remember { mutableStateOf(false) }
-
-        LaunchedEffect(Unit) {
-            UpdateChecker.checkForUpdate()?.let {
-                updateInfo = it
-                showUpdateDialog = true
-            }
-        }
-
         val projectStore = remember { ProjectStore() }
         val viewModel = remember { EditorViewModel() }
         var currentScreen by remember { mutableStateOf(Screen.ProjectPicker) }
@@ -143,18 +127,6 @@ fun main() {
                         }
                     }
                 }
-            }
-
-            if (showUpdateDialog && updateInfo != null) {
-                UpdateDialog(
-                    updateInfo = updateInfo!!,
-                    currentVersion = UpdateChecker.currentVersion(),
-                    onDownload = {
-                        Desktop.getDesktop().browse(URI(updateInfo!!.downloadUrl))
-                        showUpdateDialog = false
-                    },
-                    onDismiss = { showUpdateDialog = false },
-                )
             }
 
             App(

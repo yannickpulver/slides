@@ -8,3 +8,7 @@ local.properties
 .research/
 composeApp/hs_err_*.log
 fastlane/mac-api-key.json
+output/
+.env
+apple.p12
+sparkle.key

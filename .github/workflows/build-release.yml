@@ -10,57 +10,45 @@ permissions:
   contents: write
 
 jobs:
-  build-mac:
-    runs-on: macos-15
+  release:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: set up JDK
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: 21
 
-      - name: Install Fastlane
-        run: |
-          gem install bundler
-          bundle install
-
-      - name: Import signing certificate
-        uses: apple-actions/import-codesign-certs@v2
-        with:
-          p12-file-base64: ${{ secrets.SIGNING_CERTIFICATE_P12_DATA_MACOS }}
-          p12-password: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD_MACOS }}
-
-      - name: Write secret to file
-        run: echo "$KEY" > fastlane/mac-api-key.json
-        env:
-          KEY: ${{ secrets.APPSTORE_CONNECT_API_JSON }}
-
-      - name: Build with Gradle
-        run: bundle exec fastlane macos deploy_dmg
-
-      - name: Upload DMG as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Slides-dmg
-          path: composeApp/build/compose/binaries/main-release/dmg/*.dmg
-
-  release-mac:
-    needs: [ build-mac ]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - id: get_version
+      - name: Get version
+        id: get_version
         run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
 
-      - name: Download all workflow run artifacts
-        uses: actions/download-artifact@v4
+      - name: Parse App Store Connect API key
+        id: apple
+        run: |
+          echo "issuer_id=$(echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.issuer_id')" >> $GITHUB_OUTPUT
+          echo "key_id=$(echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key_id')" >> $GITHUB_OUTPUT
+          echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key' > /tmp/AuthKey.p8
 
-      - name: Upload binaries to release
+      - name: Build, sign and publish with Conveyor
+        uses: hydraulic-software/conveyor/actions/build@v9.2
+        with:
+          command: make copied-site
+          signing_key: ${{ secrets.SIGNING_KEY }}
+          agree_to_license: 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_NOTARY_ISSUER_ID: ${{ steps.apple.outputs.issuer_id }}
+          APPLE_NOTARY_KEY_ID: ${{ steps.apple.outputs.key_id }}
+          APPLE_NOTARY_KEY: /tmp/AuthKey.p8
+
+      - name: Upload to GitHub Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: "./Slides-dmg/*.dmg"
+          file: "output/*"
           file_glob: true
           tag: ${{ steps.get_version.outputs.version }}
           overwrite: true

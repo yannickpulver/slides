@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinSerialization)
+    id("dev.hydraulic.conveyor") version "1.12"
 }
 
 kotlin {
@@ -72,6 +73,8 @@ kotlin {
 val appVersion = providers.fileContents(rootProject.layout.projectDirectory.file("VERSION"))
     .asText.map { it.trim() }
 
+version = appVersion.get()
+
 android {
     namespace = "com.yannickpulver.slides"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -101,23 +104,12 @@ android {
 
 dependencies {
     debugImplementation(libs.compose.uiTooling)
+
+    // Conveyor platform-specific dependencies
+    "macAmd64"(compose.desktop.macos_x64)
+    "macAarch64"(compose.desktop.macos_arm64)
 }
 
-val generateVersionResource by tasks.registering {
-    val version = appVersion
-    val outputDir = layout.buildDirectory.dir("generated/resources/version")
-    inputs.property("version", version)
-    outputs.dir(outputDir)
-    doLast {
-        val dir = outputDir.get().asFile
-        dir.mkdirs()
-        dir.resolve("version.txt").writeText(version.get())
-    }
-}
-
-kotlin.sourceSets.named("jvmMain") {
-    resources.srcDir(generateVersionResource)
-}
 
 compose.desktop {
     application {
