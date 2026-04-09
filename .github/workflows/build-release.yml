@@ -21,16 +21,11 @@ jobs:
           distribution: 'zulu'
           java-version: 21
 
-      - name: Get version
-        id: get_version
-        run: echo "version=$(cat VERSION)" >> $GITHUB_OUTPUT
-
       - name: Parse App Store Connect API key
-        id: apple
         run: |
-          echo "issuer_id=$(echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.issuer_id')" >> $GITHUB_OUTPUT
-          echo "key_id=$(echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key_id')" >> $GITHUB_OUTPUT
           echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key' > /tmp/AuthKey.p8
+          echo "APPLE_NOTARY_ISSUER_ID=$(echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.issuer_id')" >> $GITHUB_ENV
+          echo "APPLE_NOTARY_KEY_ID=$(echo '${{ secrets.APPSTORE_CONNECT_API_JSON }}' | jq -r '.key_id')" >> $GITHUB_ENV
 
       - name: Build JVM JAR
         run: ./gradlew :composeApp:jvmJar
@@ -43,16 +38,4 @@ jobs:
           agree_to_license: 1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_NOTARY_ISSUER_ID: ${{ steps.apple.outputs.issuer_id }}
-          APPLE_NOTARY_KEY_ID: ${{ steps.apple.outputs.key_id }}
           APPLE_NOTARY_KEY: /tmp/AuthKey.p8
-
-      - name: Upload to GitHub Release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: "output/*"
-          file_glob: true
-          tag: ${{ steps.get_version.outputs.version }}
-          overwrite: true
-          body: "Release ${{ steps.get_version.outputs.version }}"
