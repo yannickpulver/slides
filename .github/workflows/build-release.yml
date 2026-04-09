@@ -21,6 +21,9 @@ jobs:
           distribution: 'zulu'
           java-version: 21
 
+      - name: Write Apple signing certificate
+        run: echo "${{ secrets.SIGNING_CERTIFICATE_P12_DATA_MACOS }}" | base64 -d > /tmp/apple-dev-id.p12
+
       - name: Build JVM JAR
         run: ./gradlew :composeApp:jvmJar
 
@@ -32,8 +35,11 @@ jobs:
           agree_to_license: 1
           extra_flags: >-
             -Kapp.site.github.oauth-token=${{ secrets.GITHUB_TOKEN }}
+            -Kapp.mac.signing-key=/tmp/apple-dev-id.p12
+            -Kapp.mac.certificate=/tmp/apple-dev-id.p12
             -Kapp.mac.notarization.team-id=${{ secrets.APPLE_TEAM_ID }}
             -Kapp.mac.notarization.apple-id=${{ secrets.APPLE_ID }}
             -Kapp.mac.notarization.app-specific-password=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONVEYOR_PASSPHRASE: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD_MACOS }}
