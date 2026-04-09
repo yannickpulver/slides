@@ -11,6 +11,7 @@ data class Slide(
     val elements: List<MediaElement> = emptyList(),
     val template: SlideTemplate = SlideTemplate.SINGLE,
     val hasChosenTemplate: Boolean = false,
+    val gapPx: Float = 0f,
     val spanGroupId: String? = null,
     val spanIndex: Int = 0,
     val spanCount: Int = 1,

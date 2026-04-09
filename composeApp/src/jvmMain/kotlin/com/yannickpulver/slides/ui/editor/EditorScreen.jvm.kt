@@ -39,7 +39,10 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
     val canvas = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
     val g2d = canvas.createGraphics()
     setupGraphics(g2d)
-    g2d.color = java.awt.Color.WHITE
+    val bgColor = if (slide.gapPx > 0f && slide.elements.isNotEmpty())
+        awtColor(slide.elements.first().backgroundColorArgb)
+    else java.awt.Color.WHITE
+    g2d.color = bgColor
     g2d.fillRect(0, 0, width, height)
 
     slide.elements.sortedBy { it.zIndex }.forEach { element ->
@@ -48,6 +51,7 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
             drawElementToGraphics(
                 g2d, sourceImage, element, width, height, aspectRatio.width, aspectRatio.height,
                 spanIndex = slide.spanIndex, spanCount = slide.spanCount,
+                gapPx = slide.gapPx, slotCount = slide.template.slotCount,
             )
         } catch (_: Exception) {}
     }
@@ -147,7 +151,10 @@ private fun exportSlideAsVideo(
             val canvas = BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR)
             val g2d = canvas.createGraphics()
             setupGraphics(g2d)
-            g2d.color = java.awt.Color.WHITE
+            val videoBgColor = if (slide.gapPx > 0f && slide.elements.isNotEmpty())
+                awtColor(slide.elements.first().backgroundColorArgb)
+            else java.awt.Color.WHITE
+            g2d.color = videoBgColor
             g2d.fillRect(0, 0, width, height)
 
             slide.elements.sortedBy { it.zIndex }.forEach { element ->
@@ -159,6 +166,7 @@ private fun exportSlideAsVideo(
                     drawElementToGraphics(
                         g2d, img, element, width, height, aspectRatio.width, aspectRatio.height,
                         spanIndex = slide.spanIndex, spanCount = slide.spanCount,
+                        gapPx = slide.gapPx, slotCount = slide.template.slotCount,
                     )
                 }
             }
@@ -210,11 +218,18 @@ private fun drawElementToGraphics(
     logicalCanvasHeight: Int,
     spanIndex: Int = 0,
     spanCount: Int = 1,
+    gapPx: Float = 0f,
+    slotCount: Int = 1,
 ) {
+    // Compute gap-adjusted slot positions
+    val totalGapPx = gapPx * (slotCount - 1)
+    val availableHeight = canvasHeight - totalGapPx
     val slotX = (element.bounds.x * canvasWidth).roundToInt()
-    val slotY = (element.bounds.y * canvasHeight).roundToInt()
+    val rawSlotH = (element.bounds.height * availableHeight).roundToInt()
+    val slotIndex = (element.bounds.y / element.bounds.height.coerceAtLeast(0.001f)).roundToInt()
+    val slotY = (element.bounds.y * availableHeight + slotIndex * gapPx).roundToInt()
     val slotW = (element.bounds.width * canvasWidth).roundToInt()
-    val slotH = (element.bounds.height * canvasHeight).roundToInt()
+    val slotH = rawSlotH
 
     g2d.color = awtColor(element.backgroundColorArgb)
     g2d.fillRect(slotX, slotY, slotW, slotH)

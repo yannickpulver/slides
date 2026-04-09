@@ -97,6 +97,10 @@ fun Filmstrip(
                     val isInGroup = selectedSpanGroupId != null && slide.spanGroupId == selectedSpanGroupId
                     val isDragging = slide.id in dragGroupIds
 
+                    // Tighten spacing between dragged panorama slides
+                    val isFirstInDragGroup = isDragging && (slide.spanGroupId == null || slide.spanIndex == 0)
+                    val dragGroupGapReduce = if (isDragging && !isFirstInDragGroup) 6.dp else 0.dp
+
                     SlideThumbnail(
                         slide = slide,
                         ratio = ratio,
@@ -109,7 +113,8 @@ fun Filmstrip(
                             .zIndex(if (isDragging) 1f else 0f)
                             .graphicsLayer {
                                 if (isDragging) {
-                                    translationX = dragOffsetX - accumulatedMoveCount * itemWidthPx
+                                    translationX = dragOffsetX - accumulatedMoveCount * itemWidthPx -
+                                        with(density) { dragGroupGapReduce.toPx() } * (slide.spanIndex.coerceAtLeast(0))
                                     alpha = 0.9f
                                     scaleX = 1.05f
                                     scaleY = 1.05f
@@ -139,7 +144,16 @@ fun Filmstrip(
                                             val dSlide = cs.find { it.id == dId } ?: return@detectDragGestures
                                             val gid = dSlide.spanGroupId
                                             val groupSize = if (gid != null) cs.count { it.spanGroupId == gid } else 1
-                                            val targetIdx = (originalGroupFirstIdx + desiredMoveCount).coerceIn(0, cs.size - groupSize)
+                                            var targetIdx = (originalGroupFirstIdx + desiredMoveCount).coerceIn(0, cs.size - groupSize)
+                                            // Skip over span groups — don't insert inside them
+                                            val targetSlide = cs.getOrNull(targetIdx)
+                                            if (targetSlide != null && targetSlide.spanGroupId != null && targetSlide.spanGroupId != gid) {
+                                                val spanGid = targetSlide.spanGroupId
+                                                val spanFirst = cs.indexOfFirst { it.spanGroupId == spanGid }
+                                                val spanLast = cs.indexOfLast { it.spanGroupId == spanGid }
+                                                targetIdx = if (desiredMoveCount > accumulatedMoveCount) spanLast + 1 else spanFirst
+                                                targetIdx = targetIdx.coerceIn(0, cs.size - groupSize)
+                                            }
                                             onMoveSlideState.value(dId, targetIdx)
                                             accumulatedMoveCount = desiredMoveCount
                                         }

@@ -111,6 +111,23 @@ dependencies {
 }
 
 
+val generateVersionFile = tasks.register("generateVersionFile") {
+    val versionText = appVersion.get()
+    val outputDir = layout.buildDirectory.dir("generated/version")
+    outputs.dir(outputDir)
+    doLast {
+        val dir = outputDir.get().asFile.resolve("com/yannickpulver/slides")
+        dir.mkdirs()
+        dir.resolve("AppVersion.kt").writeText(
+            "package com.yannickpulver.slides\n\nconst val APP_VERSION = \"$versionText\"\n"
+        )
+    }
+}
+
+kotlin.sourceSets.commonMain {
+    kotlin.srcDir(generateVersionFile.map { layout.buildDirectory.dir("generated/version").get() })
+}
+
 compose.desktop {
     application {
         mainClass = "com.yannickpulver.slides.MainKt"

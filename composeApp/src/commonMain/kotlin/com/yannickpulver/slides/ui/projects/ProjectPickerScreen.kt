@@ -45,6 +45,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.yannickpulver.slides.APP_VERSION
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.ProjectEntry
 import com.yannickpulver.slides.model.Slide
@@ -128,6 +129,13 @@ fun ProjectPickerScreen(
                     }
                 }
             }
+
+            Text(
+                "v$APP_VERSION",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
+            )
         }
     }
 }

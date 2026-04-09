@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,13 +31,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
@@ -53,6 +58,7 @@ import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.ui.filmstrip.Filmstrip
 import compose.icons.TablerIcons
 import compose.icons.tablericons.ArrowLeft
+import compose.icons.tablericons.Download
 import compose.icons.tablericons.Plus
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import io.github.vinceglb.filekit.path
@@ -64,12 +70,9 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
     val currentSlide = state.currentSlide
     val spanGroup = state.currentSpanGroup
     val isSpanActive = spanGroup != null && spanGroup.size > 1
-    val singleImageElement = currentSlide?.let { slide ->
-        if (slide.template == SlideTemplate.SINGLE || slide.template.isSpanTemplate) {
-            slide.elements.firstOrNull()
-        } else null
-    }
-    val showSingleImageControls = singleImageElement != null
+    val representativeElement = currentSlide?.elements?.firstOrNull()
+    val showControls = representativeElement != null && currentSlide != null && currentSlide.hasChosenTemplate
+    val showTemplatePicker = currentSlide != null && !currentSlide.hasChosenTemplate
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -80,9 +83,15 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             .focusable()
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
-                    when (event.key) {
-                        Key.DirectionLeft -> { viewModel.selectPreviousSlide(); true }
-                        Key.DirectionRight -> { viewModel.selectNextSlide(); true }
+                    when {
+                        event.key == Key.Z && event.isMetaPressed && event.isShiftPressed -> {
+                            viewModel.redo(); true
+                        }
+                        event.key == Key.Z && event.isMetaPressed -> {
+                            viewModel.undo(); true
+                        }
+                        event.key == Key.DirectionLeft -> { viewModel.selectPreviousSlide(); true }
+                        event.key == Key.DirectionRight -> { viewModel.selectNextSlide(); true }
                         else -> false
                     }
                 } else false
@@ -240,62 +249,84 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             }
         }
 
-        if (showSingleImageControls) {
-            SingleImageControls(
-                element = singleImageElement,
+        if (showTemplatePicker) {
+            TemplatePickerBar(
+                onTemplateSelected = { viewModel.applyTemplate(it) },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 38.dp),
+            )
+        } else if (showControls) {
+            SlideControls(
+                slide = currentSlide,
+                representativeElement = representativeElement,
                 onFitModeChanged = { mode ->
-                    viewModel.updateElementStyle(singleImageElement.id, fitMode = mode)
+                    viewModel.updateSlideStyle(fitMode = mode)
                 },
                 onFrameBorderPxChanged = { borderPx ->
-                    viewModel.updateElementStyle(singleImageElement.id, frameBorderPx = borderPx)
+                    viewModel.updateSlideStyle(frameBorderPx = borderPx)
                 },
                 onBackgroundColorChanged = { color ->
-                    viewModel.updateElementStyle(singleImageElement.id, backgroundColorArgb = color)
+                    viewModel.updateSlideStyle(backgroundColorArgb = color)
                 },
+                onGapChanged = { gapPx ->
+                    viewModel.updateSlideGap(gapPx)
+                },
+                onTemplateSelected = { viewModel.applyTemplate(it) },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 38.dp),
             )
         }
 
-        // Export button top-right
+        // Export buttons top-right
         run {
-            var exportMenuExpanded by remember { mutableStateOf(false) }
             var exportScale by remember { mutableStateOf(1) }
             val dirLauncher = rememberDirectoryPickerLauncher { dir ->
                 dir?.path?.let { viewModel.exportAllSlides(it, exportScale) }
             }
+            val controlHeight = 28.dp
 
-            Box(modifier = Modifier.align(Alignment.TopEnd).padding(end = 8.dp, top = 36.dp)) {
-                androidx.compose.material3.TextButton(
-                    onClick = { exportMenuExpanded = true },
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                ) {
-                    Text("Export", color = MaterialTheme.colorScheme.onSurface)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 8.dp, top = 38.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text("Export:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(
+                modifier = Modifier
+                    .height(controlHeight)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.White),
+            ) {
+                listOf(1, 2).forEachIndexed { index, scale ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                exportScale = scale
+                                dirLauncher.launch()
+                            }
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(TablerIcons.Download, contentDescription = null, modifier = Modifier.size(12.dp))
+                            Text("${scale}x", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    if (index == 0) {
+                        Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
+                    }
                 }
-                DropdownMenu(
-                    expanded = exportMenuExpanded,
-                    onDismissRequest = { exportMenuExpanded = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Export 1x") },
-                        onClick = {
-                            exportScale = 1
-                            exportMenuExpanded = false
-                            dirLauncher.launch()
-                        },
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Export 2x") },
-                        onClick = {
-                            exportScale = 2
-                            exportMenuExpanded = false
-                            dirLauncher.launch()
-                        },
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                    )
-                }
+            }
             }
         }
 

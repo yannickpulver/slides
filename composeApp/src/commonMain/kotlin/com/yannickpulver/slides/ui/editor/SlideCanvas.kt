@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -68,6 +69,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.MediaElement
+import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.MediaType
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.model.SlideTemplate
@@ -83,7 +85,6 @@ import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.path
 import kotlin.math.max
 import kotlin.math.roundToInt
-import com.yannickpulver.slides.model.MediaFitMode
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -136,14 +137,22 @@ fun SlideCanvas(
             modifier = Modifier
                 .fillMaxHeight(0.9f)
                 .aspectRatio(ratio)
-                .background(Color.White)
+                .background(
+                    if (slide.gapPx > 0f && slide.elements.isNotEmpty())
+                        slide.elements.first().backgroundColorArgb.toComposeColor()
+                    else Color.White
+                )
                 .border(1.dp, Color.LightGray)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                 ) { onCanvasClick() },
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            val gapDp = slide.gapPx.dp
+            Column(
+                modifier = Modifier.fillMaxSize().clipToBounds(),
+                verticalArrangement = if (slide.gapPx > 0f) Arrangement.spacedBy(gapDp) else Arrangement.Top,
+            ) {
                 slotBounds.forEachIndexed { slotIndex, bounds ->
                     val element = slide.elements.find { it.bounds == bounds }
                     val slotDropTarget = remember(slide.id, slotIndex) {
@@ -161,10 +170,6 @@ fun SlideCanvas(
                             .dragAndDropTarget(
                                 shouldStartDragAndDrop = { true },
                                 target = slotDropTarget,
-                            )
-                            .then(
-                                if (slotIndex > 0) Modifier.border(0.5.dp, Color.LightGray)
-                                else Modifier
                             ),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -188,53 +193,6 @@ fun SlideCanvas(
                 }
             }
 
-            if (!slide.hasChosenTemplate) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    // Layout templates
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "Layout",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SlideTemplate.entries.filter { it.spanSize() == null }.forEach { tmpl ->
-                                FilledTonalIconButton(
-                                    onClick = { onTemplateSelected(tmpl) },
-                                    modifier = Modifier.size(36.dp).pointerHoverIcon(PointerIcon.Hand),
-                                ) {
-                                    TemplateIcon(tmpl, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                    // Panorama templates
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "Panorama",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SlideTemplate.entries.filter { it.spanSize() != null }.forEach { tmpl ->
-                                FilledTonalIconButton(
-                                    onClick = { onTemplateSelected(tmpl) },
-                                    modifier = Modifier.size(36.dp).pointerHoverIcon(PointerIcon.Hand),
-                                ) {
-                                    TemplateIcon(tmpl, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -398,53 +356,6 @@ fun SpanCanvasPreview(
                 }
             }
 
-            // Template picker
-            val firstSlide = slides.firstOrNull()
-            if (firstSlide != null && !firstSlide.hasChosenTemplate) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "Layout",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SlideTemplate.entries.filter { it.spanSize() == null }.forEach { tmpl ->
-                                FilledTonalIconButton(
-                                    onClick = { onTemplateSelected(tmpl) },
-                                    modifier = Modifier.size(36.dp).pointerHoverIcon(PointerIcon.Hand),
-                                ) {
-                                    TemplateIcon(tmpl, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "Panorama",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            SlideTemplate.entries.filter { it.spanSize() != null }.forEach { tmpl ->
-                                FilledTonalIconButton(
-                                    onClick = { onTemplateSelected(tmpl) },
-                                    modifier = Modifier.size(36.dp).pointerHoverIcon(PointerIcon.Hand),
-                                ) {
-                                    TemplateIcon(tmpl, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -550,6 +461,15 @@ private fun FilledSlot(
             ox = element.cropOffsetX * slotSize.width
             oy = element.cropOffsetY * slotSize.height
             initialized = true
+        }
+    }
+
+    // Reset local state when model crop is zeroed (e.g. layout switch)
+    LaunchedEffect(element.cropOffsetX, element.cropOffsetY, element.cropScale) {
+        if (element.cropOffsetX == 0f && element.cropOffsetY == 0f && element.cropScale == 1f && initialized) {
+            ox = 0f
+            oy = 0f
+            scale = 1f
         }
     }
 
@@ -1045,19 +965,65 @@ private fun EmptySlot(onAddImage: (String) -> Unit) {
 }
 
 @Composable
-fun SingleImageControls(
-    element: MediaElement,
+fun TemplatePickerBar(
+    onTemplateSelected: (SlideTemplate) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val controlHeight = 28.dp
+    val separatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+
+    Row(
+        modifier = modifier
+            .shadow(4.dp, RoundedCornerShape(50))
+            .background(Color.White, RoundedCornerShape(50))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SlideTemplate.entries.filter { it.spanSize() == null }.forEach { tmpl ->
+            FilledTonalIconButton(
+                onClick = { onTemplateSelected(tmpl) },
+                modifier = Modifier.size(controlHeight).pointerHoverIcon(PointerIcon.Hand),
+            ) {
+                TemplateIcon(tmpl, modifier = Modifier.size(14.dp))
+            }
+        }
+
+        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
+
+        SlideTemplate.entries.filter { it.spanSize() != null }.forEach { tmpl ->
+            FilledTonalIconButton(
+                onClick = { onTemplateSelected(tmpl) },
+                modifier = Modifier.size(controlHeight).pointerHoverIcon(PointerIcon.Hand),
+            ) {
+                TemplateIcon(tmpl, modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun SlideControls(
+    slide: Slide,
+    representativeElement: MediaElement,
     onFitModeChanged: (MediaFitMode) -> Unit,
     onFrameBorderPxChanged: (Float) -> Unit,
     onBackgroundColorChanged: (Long) -> Unit,
+    onGapChanged: (Float) -> Unit,
+    onTemplateSelected: (SlideTemplate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val currentColor = element.backgroundColorArgb.toComposeColor()
-    val usesCustomColor = element.backgroundColorArgb != WHITE_BACKGROUND && element.backgroundColorArgb != BLACK_BACKGROUND
+    val currentColor = representativeElement.backgroundColorArgb.toComposeColor()
+    val usesCustomColor = representativeElement.backgroundColorArgb != WHITE_BACKGROUND && representativeElement.backgroundColorArgb != BLACK_BACKGROUND
     val launchSystemColorPicker = rememberSystemColorPickerLauncher(onBackgroundColorChanged)
-    var borderInput by remember(element.id) {
-        mutableStateOf(element.frameBorderPx.roundToInt().toString())
+    var borderInput by remember(slide.id) {
+        mutableStateOf(representativeElement.frameBorderPx.roundToInt().toString())
     }
+    val showGap = slide.template.slotCount > 1
+    var gapInput by remember(slide.id) {
+        mutableStateOf(slide.gapPx.roundToInt().toString())
+    }
+    var layoutExpanded by remember { mutableStateOf(false) }
 
     val controlHeight = 28.dp
     val separatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
@@ -1070,76 +1036,72 @@ fun SingleImageControls(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Segmented Fill/Full toggle
-        Row(
-            modifier = Modifier
-                .height(controlHeight)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                .clip(RoundedCornerShape(6.dp)),
-        ) {
-            val modes = listOf("Fill" to MediaFitMode.FILL, "Full" to MediaFitMode.FIT)
-            modes.forEachIndexed { index, (label, mode) ->
-                val selected = element.fitMode == mode
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onFitModeChanged(mode) }
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (index == 0) {
-                    Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
-                }
-            }
-        }
-
-        // Separator
-        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
-
-        // Border controls
-        Text("Border", style = MaterialTheme.typography.labelMedium)
-        BasicTextField(
-            value = borderInput,
-            onValueChange = { value ->
-                val filtered = value.filter { it.isDigit() }.take(3)
-                borderInput = filtered
-                if (filtered.isEmpty()) {
-                    onFrameBorderPxChanged(0f)
-                } else {
-                    filtered.toFloatOrNull()?.let { px ->
-                        onFrameBorderPxChanged(px.coerceIn(0f, MAX_FRAME_BORDER_PX))
+        if (!showGap) {
+            // Segmented Fill/Full toggle (single/span only)
+            Row(
+                modifier = Modifier
+                    .height(controlHeight)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(6.dp)),
+            ) {
+                val modes = listOf("Fill" to MediaFitMode.FILL, "Full" to MediaFitMode.FIT)
+                modes.forEachIndexed { index, (label, mode) ->
+                    val selected = representativeElement.fitMode == mode
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { onFitModeChanged(mode) }
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (index == 0) {
+                        Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
                     }
                 }
-            },
-            singleLine = true,
-            modifier = Modifier
-                .width(64.dp)
-                .height(controlHeight)
-                .background(Color.White, RoundedCornerShape(6.dp))
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                .padding(horizontal = 8.dp),
-            textStyle = MaterialTheme.typography.bodyMedium,
-            decorationBox = { innerTextField ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxHeight(),
-                ) {
-                    Box(Modifier.weight(1f)) { innerTextField() }
-                    Text("px", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            },
-        )
+            }
+
+            // Separator
+            Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
+
+            // Border controls (single/span only)
+            Text("Border", style = MaterialTheme.typography.labelMedium)
+            PxInputField(
+                value = borderInput,
+                onValueChange = { value ->
+                    val filtered = value.filter { it.isDigit() }.take(3)
+                    borderInput = filtered
+                    val px = if (filtered.isEmpty()) 0f else filtered.toFloatOrNull() ?: 0f
+                    onFrameBorderPxChanged(px.coerceIn(0f, MAX_FRAME_BORDER_PX))
+                },
+                controlHeight = controlHeight,
+            )
+        }
+
+        // Gap controls (multi-image only)
+        if (showGap) {
+            Text("Gap", style = MaterialTheme.typography.labelMedium)
+            PxInputField(
+                value = gapInput,
+                onValueChange = { value ->
+                    val filtered = value.filter { it.isDigit() }.take(3)
+                    gapInput = filtered
+                    val px = if (filtered.isEmpty()) 0f else filtered.toFloatOrNull() ?: 0f
+                    onGapChanged(px.coerceIn(0f, MAX_GAP_PX))
+                },
+                controlHeight = controlHeight,
+            )
+        }
 
         // Separator
         Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
@@ -1147,24 +1109,109 @@ fun SingleImageControls(
         // Color bubbles
         ColorBubble(
             color = WHITE_BACKGROUND.toComposeColor(),
-            selected = element.backgroundColorArgb == WHITE_BACKGROUND,
+            selected = representativeElement.backgroundColorArgb == WHITE_BACKGROUND,
             onClick = { onBackgroundColorChanged(WHITE_BACKGROUND) },
             size = controlHeight,
         )
         ColorBubble(
             color = BLACK_BACKGROUND.toComposeColor(),
-            selected = element.backgroundColorArgb == BLACK_BACKGROUND,
+            selected = representativeElement.backgroundColorArgb == BLACK_BACKGROUND,
             onClick = { onBackgroundColorChanged(BLACK_BACKGROUND) },
             size = controlHeight,
         )
         ColorBubble(
             color = currentColor,
             selected = usesCustomColor,
-            onClick = { launchSystemColorPicker(element.backgroundColorArgb) },
+            onClick = { launchSystemColorPicker(representativeElement.backgroundColorArgb) },
             label = "+",
             size = controlHeight,
         )
+
+        // Separator
+        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
+
+        // Layout re-selector
+        Box {
+            FilledTonalIconButton(
+                onClick = { layoutExpanded = !layoutExpanded },
+                modifier = Modifier.size(controlHeight).pointerHoverIcon(PointerIcon.Hand),
+            ) {
+                TemplateIcon(slide.template, modifier = Modifier.size(14.dp))
+            }
+            DropdownMenu(
+                expanded = layoutExpanded,
+                onDismissRequest = { layoutExpanded = false },
+            ) {
+                Text(
+                    "Layout",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    SlideTemplate.entries.filter { it.spanSize() == null }.forEach { tmpl ->
+                        FilledTonalIconButton(
+                            onClick = { onTemplateSelected(tmpl); layoutExpanded = false },
+                            modifier = Modifier.size(36.dp).pointerHoverIcon(PointerIcon.Hand),
+                        ) {
+                            TemplateIcon(tmpl, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+                Text(
+                    "Panorama",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 0.dp).padding(bottom = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    SlideTemplate.entries.filter { it.spanSize() != null }.forEach { tmpl ->
+                        FilledTonalIconButton(
+                            onClick = { onTemplateSelected(tmpl); layoutExpanded = false },
+                            modifier = Modifier.size(36.dp).pointerHoverIcon(PointerIcon.Hand),
+                        ) {
+                            TemplateIcon(tmpl, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun PxInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    controlHeight: Dp,
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        modifier = Modifier
+            .width(64.dp)
+            .height(controlHeight)
+            .background(Color.White, RoundedCornerShape(6.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp),
+        textStyle = MaterialTheme.typography.bodyMedium,
+        decorationBox = { innerTextField ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxHeight(),
+            ) {
+                Box(Modifier.weight(1f)) { innerTextField() }
+                Text("px", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+    )
 }
 
 @Composable
@@ -1306,13 +1353,14 @@ private fun perceivedBrightness(color: Color): Float =
     (color.red * 0.299f) + (color.green * 0.587f) + (color.blue * 0.114f)
 
 private const val MAX_FRAME_BORDER_PX = 240f
+private val MAX_GAP_PX = EditorViewModel.MAX_GAP_PX
 private const val WHITE_BACKGROUND = 0xFFFFFFFFL
 private const val BLACK_BACKGROUND = 0xFF000000L
 
 // ── Template icon ───────────────────────────────────────────────────────
 
 @Composable
-private fun TemplateIcon(template: SlideTemplate, modifier: Modifier = Modifier) {
+fun TemplateIcon(template: SlideTemplate, modifier: Modifier = Modifier) {
     val spanSize = template.spanSize()
     if (spanSize != null) {
         Row(
@@ -1398,11 +1446,19 @@ fun SlidePreview(
             modifier = Modifier
                 .fillMaxHeight(fillFraction)
                 .aspectRatio(ratio)
-                .background(Color.White)
+                .background(
+                    if (slide.gapPx > 0f && slide.elements.isNotEmpty())
+                        slide.elements.first().backgroundColorArgb.toComposeColor()
+                    else Color.White
+                )
                 .border(1.dp, Color.LightGray)
                 .clipToBounds(),
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
+            val gapDp = slide.gapPx.dp
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = if (slide.gapPx > 0f) Arrangement.spacedBy(gapDp) else Arrangement.Top,
+            ) {
                 slotBounds.forEachIndexed { _, bounds ->
                     val element = slide.elements.find { it.bounds == bounds }
                     Box(
