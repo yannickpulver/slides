@@ -432,6 +432,7 @@ class EditorViewModel : ViewModel() {
                 val bounds = ElementBounds(0f, 0f, 1f, 1f)
 
                 val slideIdx = slidesAfterTeardown.indexOfFirst { it.id == currentSlide.id }
+                if (slideIdx < 0) return@update state
                 val updatedFirst = currentSlide.copy(
                     template = template,
                     hasChosenTemplate = true,

@@ -54,6 +54,7 @@ import compose.icons.TablerIcons
 import compose.icons.tablericons.FolderPlus
 import compose.icons.tablericons.Trash
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -148,6 +149,7 @@ private fun ProjectCard(
     onDelete: () -> Unit,
 ) {
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     var hovered by remember { mutableStateOf(false) }
     val scale by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (hovered) 1.03f else 1f,
@@ -215,7 +217,7 @@ private fun ProjectCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        dateFormat.format(Date(entry.lastModified)),
+                        relativeDate(entry.lastModified, dateFormat, timeFormat),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -230,5 +232,24 @@ private fun ProjectCard(
                 }
             }
         }
+    }
+}
+
+private fun relativeDate(timestamp: Long, dateFormat: SimpleDateFormat, timeFormat: SimpleDateFormat): String {
+    val now = Calendar.getInstance()
+    val then = Calendar.getInstance().apply { timeInMillis = timestamp }
+    val diffMs = System.currentTimeMillis() - timestamp
+    val diffMin = diffMs / 60_000
+
+    return when {
+        diffMin < 1 -> "Just now"
+        diffMin < 60 -> "${diffMin}m ago"
+        now.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
+            now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR) ->
+            "Today, ${timeFormat.format(Date(timestamp))}"
+        now.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
+            now.get(Calendar.DAY_OF_YEAR) - then.get(Calendar.DAY_OF_YEAR) == 1 ->
+            "Yesterday, ${timeFormat.format(Date(timestamp))}"
+        else -> dateFormat.format(Date(timestamp))
     }
 }
