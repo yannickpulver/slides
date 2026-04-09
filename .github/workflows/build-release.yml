@@ -34,6 +34,7 @@ jobs:
           signing_key: ${{ secrets.SIGNING_KEY }}
           agree_to_license: 1
           extra_flags: >-
+            --passphrase=env:P12_PASSWORD
             -Kapp.site.github.oauth-token=${{ secrets.GITHUB_TOKEN }}
             -Kapp.mac.signing-key=/tmp/apple-dev-id.p12
             -Kapp.mac.certificate=/tmp/apple-dev-id.p12
@@ -42,4 +43,4 @@ jobs:
             -Kapp.mac.notarization.app-specific-password=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CONVEYOR_PASSPHRASE: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD_MACOS }}
+          P12_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD_MACOS }}
