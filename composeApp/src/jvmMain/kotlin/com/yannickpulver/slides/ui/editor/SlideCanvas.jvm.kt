@@ -19,14 +19,18 @@ actual fun loadImageBitmap(path: String): ImageBitmap? {
         if (ext in videoExtensions) {
             loadVideoThumbnail(path)
         } else {
-            val orientation = readExifOrientation(file)
-            val bufferedImage = ImageIO.read(file) ?: return null
-            val corrected = applyExifOrientation(bufferedImage, orientation)
+            val corrected = loadExifCorrectedImage(file) ?: return null
             corrected.toComposeImageBitmap()
         }
     } catch (e: Exception) {
         null
     }
+}
+
+internal fun loadExifCorrectedImage(file: File): BufferedImage? {
+    val orientation = readExifOrientation(file)
+    val image = ImageIO.read(file) ?: return null
+    return applyExifOrientation(image, orientation)
 }
 
 private fun readExifOrientation(file: File): Int {

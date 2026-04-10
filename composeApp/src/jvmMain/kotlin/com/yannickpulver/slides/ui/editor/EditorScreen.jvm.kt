@@ -47,7 +47,7 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
 
     slide.elements.sortedBy { it.zIndex }.forEach { element ->
         try {
-            val sourceImage = ImageIO.read(File(element.sourcePath)) ?: return@forEach
+            val sourceImage = loadExifCorrectedImage(File(element.sourcePath)) ?: return@forEach
             drawElementToGraphics(
                 g2d, sourceImage, element, width, height, aspectRatio.width, aspectRatio.height,
                 spanIndex = slide.spanIndex, spanCount = slide.spanCount,
@@ -93,7 +93,7 @@ private fun exportSlideAsVideo(
 
     // Cache static images
     val imageCache = imageElements.associateWith { element ->
-        try { ImageIO.read(File(element.sourcePath)) } catch (_: Exception) { null }
+        try { loadExifCorrectedImage(File(element.sourcePath)) } catch (_: Exception) { null }
     }
 
     // Cache latest video frame per element — pre-grab first frame
