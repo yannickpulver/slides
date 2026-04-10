@@ -144,12 +144,17 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                         slide = state.currentSlide,
                         aspectRatio = aspectRatio,
                         selectedElementId = state.selectedElementId,
+                        selectedTextOverlayId = state.selectedTextOverlayId,
                         currentTemplate = state.currentSlide?.template,
                         onElementClick = viewModel::selectElement,
-                        onCanvasClick = { viewModel.selectElement(null) },
+                        onCanvasClick = { viewModel.selectElement(null); viewModel.selectTextOverlay(null) },
                         onAddImageAtSlot = { slotIndex, path -> viewModel.addElementAtSlot(slotIndex, path) },
                         onTemplateSelected = { viewModel.applyTemplate(it) },
                         onElementCropChanged = { id, ox, oy, s -> viewModel.updateElementCrop(id, ox, oy, s) },
+                        onTextOverlayClick = { viewModel.selectTextOverlay(it) },
+                        onTextOverlayPositionChanged = { id, x, y -> viewModel.updateTextOverlayPosition(id, x, y) },
+                        onTextOverlayWidthChanged = { id, w -> viewModel.updateTextOverlayWidth(id, w) },
+                        onTextOverlayTextChanged = { id, t -> viewModel.updateTextOverlayText(id, t) },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -271,6 +276,26 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     .align(Alignment.TopCenter)
                     .padding(top = 38.dp),
             )
+        } else if (state.selectedTextOverlayId != null) {
+            val selectedOverlay = currentSlide?.textOverlays?.find { it.id == state.selectedTextOverlayId }
+            if (selectedOverlay != null) {
+                TextOverlayControls(
+                    overlay = selectedOverlay,
+                    onStyleChanged = { fontFamily, fontSize, color, alignment ->
+                        viewModel.updateTextOverlayStyle(
+                            id = selectedOverlay.id,
+                            fontFamily = fontFamily,
+                            fontSizePx = fontSize,
+                            colorArgb = color,
+                            alignment = alignment,
+                        )
+                    },
+                    onDelete = { viewModel.removeTextOverlay(selectedOverlay.id) },
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 38.dp),
+                )
+            }
         } else if (showControls) {
             SlideControls(
                 slide = currentSlide,
@@ -288,6 +313,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     viewModel.updateSlideGap(gapPx)
                 },
                 onTemplateSelected = { viewModel.applyTemplate(it) },
+                onAddText = { viewModel.addTextOverlay() },
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 38.dp),

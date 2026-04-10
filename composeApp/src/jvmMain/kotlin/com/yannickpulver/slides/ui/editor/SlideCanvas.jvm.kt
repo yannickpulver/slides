@@ -11,6 +11,8 @@ import javax.imageio.ImageIO
 
 private val videoExtensions = setOf("mp4", "mov", "avi", "mkv", "webm")
 
+private const val MAX_CANVAS_PX = 2048
+
 actual fun loadImageBitmap(path: String): ImageBitmap? {
     return try {
         val file = File(path)
@@ -20,11 +22,27 @@ actual fun loadImageBitmap(path: String): ImageBitmap? {
             loadVideoThumbnail(path)
         } else {
             val corrected = loadExifCorrectedImage(file) ?: return null
-            corrected.toComposeImageBitmap()
+            downscale(corrected).toComposeImageBitmap()
         }
     } catch (e: Exception) {
         null
     }
+}
+
+private fun downscale(image: BufferedImage): BufferedImage {
+    val w = image.width
+    val h = image.height
+    val longest = maxOf(w, h)
+    if (longest <= MAX_CANVAS_PX) return image
+    val scale = MAX_CANVAS_PX.toDouble() / longest
+    val nw = (w * scale).toInt()
+    val nh = (h * scale).toInt()
+    val scaled = BufferedImage(nw, nh, image.type.takeIf { it != 0 } ?: BufferedImage.TYPE_INT_ARGB)
+    val g = scaled.createGraphics()
+    g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+    g.drawImage(image, 0, 0, nw, nh, null)
+    g.dispose()
+    return scaled
 }
 
 internal fun loadExifCorrectedImage(file: File): BufferedImage? {

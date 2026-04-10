@@ -9,6 +9,7 @@ import kotlin.uuid.Uuid
 data class Slide(
     val id: String = Uuid.random().toString(),
     val elements: List<MediaElement> = emptyList(),
+    val textOverlays: List<TextOverlay> = emptyList(),
     val template: SlideTemplate = SlideTemplate.SINGLE,
     val hasChosenTemplate: Boolean = false,
     val gapPx: Float = 0f,
