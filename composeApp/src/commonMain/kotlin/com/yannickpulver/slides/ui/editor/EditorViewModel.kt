@@ -486,9 +486,16 @@ class EditorViewModel : ViewModel() {
                 // Non-span template
                 val templateBounds = boundsForTemplate(template)
                 val currentSlide = slidesAfterTeardown.find { it.id == slide.id } ?: slide
+                val resetBorder = template.slotCount > 1
                 val updatedElements = currentSlide.elements.mapIndexed { index, element ->
                     val b = templateBounds.getOrElse(index) { element.bounds }
-                    element.copy(bounds = b, cropOffsetX = 0f, cropOffsetY = 0f, cropScale = 1f)
+                    element.copy(
+                        bounds = b,
+                        cropOffsetX = 0f,
+                        cropOffsetY = 0f,
+                        cropScale = 1f,
+                        frameBorderPx = if (resetBorder) 0f else element.frameBorderPx,
+                    )
                 }
                 val updatedSlide = currentSlide.copy(
                     template = template,
