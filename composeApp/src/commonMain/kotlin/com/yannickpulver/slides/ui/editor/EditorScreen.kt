@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -235,16 +236,30 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             )
         }
 
-        // Back button top-left
+        // Back button + project name top-left
         if (onBack != null) {
-            IconButton(
-                onClick = onBack,
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 36.dp).pointerHoverIcon(PointerIcon.Hand),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 36.dp),
             ) {
-                Icon(
-                    TablerIcons.ArrowLeft,
-                    contentDescription = "Back to projects",
-                    modifier = Modifier.size(20.dp),
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                ) {
+                    Icon(
+                        TablerIcons.ArrowLeft,
+                        contentDescription = "Back to slides",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                BasicTextField(
+                    value = state.project.name,
+                    onValueChange = { viewModel.updateProjectName(it) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.titleSmall.copy(
+                        color = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    modifier = Modifier.width(200.dp),
                 )
             }
         }

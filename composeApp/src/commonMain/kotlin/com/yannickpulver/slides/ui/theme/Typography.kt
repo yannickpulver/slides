@@ -3,27 +3,28 @@ package com.yannickpulver.slides.ui.theme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import org.jetbrains.compose.resources.Font
 import slides.composeapp.generated.resources.Res
-import slides.composeapp.generated.resources.inter_bold
-import slides.composeapp.generated.resources.inter_light
-import slides.composeapp.generated.resources.inter_medium
-import slides.composeapp.generated.resources.inter_regular
-import slides.composeapp.generated.resources.inter_semibold
+import slides.composeapp.generated.resources.miranda_sans_bold
+import slides.composeapp.generated.resources.miranda_sans_italic
+import slides.composeapp.generated.resources.miranda_sans_medium
+import slides.composeapp.generated.resources.miranda_sans_regular
+import slides.composeapp.generated.resources.miranda_sans_semibold
 
 @Composable
-fun InterFontFamily(): FontFamily = FontFamily(
-    Font(Res.font.inter_light, weight = FontWeight.Light),
-    Font(Res.font.inter_regular, weight = FontWeight.Normal),
-    Font(Res.font.inter_medium, weight = FontWeight.Medium),
-    Font(Res.font.inter_semibold, weight = FontWeight.SemiBold),
-    Font(Res.font.inter_bold, weight = FontWeight.Bold),
+fun AppFontFamily(): FontFamily = FontFamily(
+    Font(Res.font.miranda_sans_regular, weight = FontWeight.Normal),
+    Font(Res.font.miranda_sans_medium, weight = FontWeight.Medium),
+    Font(Res.font.miranda_sans_semibold, weight = FontWeight.SemiBold),
+    Font(Res.font.miranda_sans_bold, weight = FontWeight.Bold),
+    Font(Res.font.miranda_sans_italic, weight = FontWeight.Normal, style = FontStyle.Italic),
 )
 
 @Composable
-fun InterTypography(): Typography {
-    val fontFamily = InterFontFamily()
+fun AppTypography(): Typography {
+    val fontFamily = AppFontFamily()
     val default = Typography()
     return Typography(
         displayLarge = default.displayLarge.copy(fontFamily = fontFamily),

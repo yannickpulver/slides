@@ -51,7 +51,7 @@ import com.yannickpulver.slides.model.ProjectEntry
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.ui.editor.SlidePreview
 import compose.icons.TablerIcons
-import compose.icons.tablericons.FolderPlus
+import compose.icons.tablericons.Plus
 import compose.icons.tablericons.Trash
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -75,59 +75,29 @@ fun ProjectPickerScreen(
                 .align(Alignment.TopCenter),
         ) {
             Text(
-                "Projects",
+                "Slides",
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Select a project or create a new one",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             Spacer(Modifier.height(32.dp))
 
-            FilledTonalButton(
-                onClick = onCreateProject,
-                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
-                    containerColor = Color.White,
-                ),
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(180.dp),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Icon(TablerIcons.FolderPlus, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("New Project")
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            if (projects.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "No projects yet",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                item {
+                    NewProjectCard(onClick = onCreateProject)
                 }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(180.dp),
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(projects, key = { it.id }) { entry ->
-                        ProjectCard(
-                            entry = entry,
-                            firstSlide = firstSlides[entry.id],
-                            onClick = { onOpenProject(entry) },
-                            onDelete = { onDeleteProject(entry) },
-                        )
-                    }
+                items(projects, key = { it.id }) { entry ->
+                    ProjectCard(
+                        entry = entry,
+                        firstSlide = firstSlides[entry.id],
+                        onClick = { onOpenProject(entry) },
+                        onDelete = { onDeleteProject(entry) },
+                    )
                 }
             }
 
@@ -137,6 +107,43 @@ fun ProjectPickerScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun NewProjectCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().pointerHoverIcon(PointerIcon.Hand)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+    ) {
+        // Use same aspect ratio as ProjectCard (3:4 preview + bottom row) to match height
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(3f / 5f),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    TablerIcons.Plus,
+                    contentDescription = "New Slides",
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "New Slides",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

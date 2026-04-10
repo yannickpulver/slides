@@ -1522,15 +1522,16 @@ private fun PreviewSlotContent(
 
         val effectiveSlotWidth = sw * spanCount
         val effectiveLogicalWidth = logicalSlotWidth * spanCount
+        val useCrop = spanCount == 1
         val frame = computeMediaFrame(
             slotWidth = effectiveSlotWidth,
             slotHeight = sh,
             mediaWidth = iw,
             mediaHeight = ih,
             fitMode = element.fitMode,
-            cropOffsetX = 0f,
-            cropOffsetY = 0f,
-            cropScale = 1f,
+            cropOffsetX = if (useCrop) element.cropOffsetX * sw else 0f,
+            cropOffsetY = if (useCrop) element.cropOffsetY * sh else 0f,
+            cropScale = if (useCrop) element.cropScale else 1f,
             frameBorderPx = element.frameBorderPx,
             logicalSlotWidth = effectiveLogicalWidth,
             logicalSlotHeight = logicalSlotHeight,

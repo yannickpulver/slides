@@ -13,7 +13,7 @@ import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.ui.editor.EditorScreen
 import com.yannickpulver.slides.ui.editor.EditorViewModel
 import com.yannickpulver.slides.ui.projects.ProjectPickerScreen
-import com.yannickpulver.slides.ui.theme.InterTypography
+import com.yannickpulver.slides.ui.theme.AppTypography
 
 private val GrayColorScheme = lightColorScheme(
     primary = Color(0xFF616161),
@@ -47,7 +47,7 @@ fun App(
     currentScreen: Screen,
     onBackToProjects: () -> Unit,
 ) {
-    MaterialTheme(colorScheme = GrayColorScheme, typography = InterTypography()) {
+    MaterialTheme(colorScheme = GrayColorScheme, typography = AppTypography()) {
         when (currentScreen) {
             Screen.ProjectPicker -> ProjectPickerScreen(
                 projects = projects,

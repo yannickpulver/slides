@@ -102,7 +102,7 @@ fun main() {
             if (currentScreen == Screen.Editor) {
                 MenuBar {
                     Menu("File") {
-                        Item("Back to Projects") {
+                        Item("Back to Slides") {
                             saveCurrentProject()
                             currentScreen = Screen.ProjectPicker
                             refreshProjects()
