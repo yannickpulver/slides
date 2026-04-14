@@ -1,9 +1,11 @@
 package com.yannickpulver.slides
 
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.unit.dp
@@ -96,6 +98,14 @@ fun main() {
                     projectStore.saveProject(viewModel.state.value.project, path)
                     viewModel.setProjectFilePath(path)
                     refreshProjects()
+                }
+            }
+
+            // Auto-save every 30s while in editor
+            LaunchedEffect(currentScreen) {
+                while (currentScreen == Screen.Editor) {
+                    delay(30_000)
+                    saveCurrentProject()
                 }
             }
 

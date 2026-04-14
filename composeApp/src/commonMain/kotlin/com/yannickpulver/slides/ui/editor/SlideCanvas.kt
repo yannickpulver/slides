@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.text.BasicTextField
@@ -44,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -183,16 +185,18 @@ fun SlideCanvas(
                         contentAlignment = Alignment.Center,
                     ) {
                         if (element != null) {
-                            FilledSlot(
-                                element = element,
-                                logicalSlotWidth = aspectRatio.width * bounds.width,
-                                logicalSlotHeight = aspectRatio.height * bounds.height,
-                                isSelected = element.id == selectedElementId,
-                                onClick = { onElementClick(element.id) },
-                                onCropChanged = { ox, oy, s ->
-                                    onElementCropChanged(element.id, ox, oy, s)
-                                },
-                            )
+                            key(element.id) {
+                                FilledSlot(
+                                    element = element,
+                                    logicalSlotWidth = aspectRatio.width * bounds.width,
+                                    logicalSlotHeight = aspectRatio.height * bounds.height,
+                                    isSelected = element.id == selectedElementId,
+                                    onClick = { onElementClick(element.id) },
+                                    onCropChanged = { ox, oy, s ->
+                                        onElementCropChanged(element.id, ox, oy, s)
+                                    },
+                                )
+                            }
                         } else {
                             EmptySlot(
                                 onAddImage = { path -> onAddImageAtSlot(slotIndex, path) },
@@ -216,6 +220,15 @@ fun SlideCanvas(
                 )
             }
 
+        }
+
+        if (slide.elements.any { it.type == MediaType.VIDEO }) {
+            Text(
+                "Click the video to start / stop",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+            )
         }
     }
 }
@@ -850,28 +863,48 @@ private fun VideoSlotContent(
     onImageSizeKnown: (Int, Int) -> Unit,
     onToggleReady: ((() -> Unit)) -> Unit,
 ) {
-    // Don't auto-create the video player — AVFoundation crashes on macOS
-    // when multiple players init concurrently. Only create on user action.
     var playerActive by remember { mutableStateOf(false) }
+
+    // Show thumbnail when player is not active
+    var thumbnail by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
+    LaunchedEffect(element.sourcePath) {
+        if (thumbnail == null) {
+            thumbnail = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                loadCachedBitmap(element.sourcePath)
+            }
+        }
+    }
+
+    // Report FFmpeg dimensions immediately from thumbnail or video info
+    val videoInfo = remember(element.sourcePath) { getVideoInfo(element.sourcePath) }
+    val rotation = videoInfo.rotation
+    val swapDimensions = rotation == 90 || rotation == 270
+    LaunchedEffect(Unit) {
+        if (videoInfo.codedWidth > 0 && videoInfo.codedHeight > 0) {
+            val w = if (swapDimensions) videoInfo.codedHeight else videoInfo.codedWidth
+            val h = if (swapDimensions) videoInfo.codedWidth else videoInfo.codedHeight
+            onImageSizeKnown(w, h)
+        }
+    }
 
     if (!playerActive) {
         Box(
             modifier = Modifier.fillMaxSize().background(Color(0xFF1A1A1A)),
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.TopStart,
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                FilledTonalIconButton(
-                    onClick = { playerActive = true },
-                    modifier = Modifier.size(48.dp).pointerHoverIcon(PointerIcon.Hand),
-                ) {
-                    Icon(TablerIcons.PlayerPlay, contentDescription = "Play video", modifier = Modifier.size(24.dp))
-                }
-                Text(
-                    element.sourcePath.substringAfterLast("/"),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(top = 8.dp),
+            thumbnail?.let {
+                Image(
+                    bitmap = it,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
                 )
+            }
+            IconButton(
+                onClick = { playerActive = true },
+                modifier = Modifier.padding(4.dp).size(32.dp).pointerHoverIcon(PointerIcon.Hand),
+            ) {
+                Icon(TablerIcons.PlayerPlay, contentDescription = "Play video", tint = Color.White, modifier = Modifier.size(20.dp))
             }
         }
         LaunchedEffect(Unit) {
@@ -882,7 +915,6 @@ private fun VideoSlotContent(
 
     val playerState = rememberVideoPlayerState()
 
-    // Stop playback before disposal to avoid AVFoundation race condition
     DisposableEffect(element.id) {
         onDispose {
             playerState.pause()
@@ -894,12 +926,6 @@ private fun VideoSlotContent(
     }
     val density = LocalDensity.current
 
-    // Read video rotation + coded dimensions from FFmpeg (immediate, no async wait)
-    val videoInfo = remember(element.sourcePath) { getVideoInfo(element.sourcePath) }
-    val rotation = videoInfo.rotation
-    val swapDimensions = rotation == 90 || rotation == 270
-
-    // Use player metadata when available, fall back to FFmpeg coded dimensions
     val meta = playerState.metadata
     val iw = (meta.width ?: if (swapDimensions) videoInfo.codedHeight else videoInfo.codedWidth).toFloat()
     val ih = (meta.height ?: if (swapDimensions) videoInfo.codedWidth else videoInfo.codedHeight).toFloat()
@@ -910,17 +936,11 @@ private fun VideoSlotContent(
             onImageSizeKnown(w, h)
         }
     }
-    // Report FFmpeg dimensions immediately if player metadata not ready yet
-    LaunchedEffect(Unit) {
-        if (videoInfo.codedWidth > 0 && videoInfo.codedHeight > 0) {
-            val w = if (swapDimensions) videoInfo.codedHeight else videoInfo.codedWidth
-            val h = if (swapDimensions) videoInfo.codedWidth else videoInfo.codedHeight
-            onImageSizeKnown(w, h)
-        }
-    }
 
     LaunchedEffect(element.sourcePath) {
         try {
+            // Give AVFoundation time to fully release previous player resources
+            kotlinx.coroutines.delay(300)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 playerState.openUri(element.sourcePath.toFileUri())
                 playerState.loop = true

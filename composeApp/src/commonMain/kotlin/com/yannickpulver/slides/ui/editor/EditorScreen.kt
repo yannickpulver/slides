@@ -1,5 +1,7 @@
 package com.yannickpulver.slides.ui.editor
 
+import com.yannickpulver.slides.model.ElementBounds
+import com.yannickpulver.slides.model.MediaElement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -73,7 +75,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
     val spanGroup = state.currentSpanGroup
     val isSpanActive = spanGroup != null && spanGroup.size > 1
     val representativeElement = currentSlide?.elements?.firstOrNull()
-    val showControls = representativeElement != null && currentSlide != null && currentSlide.hasChosenTemplate
+    val showControls = currentSlide != null && currentSlide.hasChosenTemplate
     val showTemplatePicker = currentSlide != null && !currentSlide.hasChosenTemplate
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -300,7 +302,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
         } else if (showControls) {
             SlideControls(
                 slide = currentSlide,
-                representativeElement = representativeElement,
+                representativeElement = representativeElement ?: MediaElement(sourcePath = "", bounds = ElementBounds()),
                 onFitModeChanged = { mode ->
                     viewModel.updateSlideStyle(fitMode = mode)
                 },

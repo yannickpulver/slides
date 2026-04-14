@@ -83,18 +83,21 @@ private fun exportSlideAsVideo(
     val imageElements = slide.elements.filter { it.type == MediaType.IMAGE }
 
     // Open grabbers and probe durations
-    var maxDurationUs = 0L
+    var minDurationUs = Long.MAX_VALUE
     val videoRotations = mutableMapOf<String, Int>()
     val videoGrabbers = videoElements.map { element ->
         val grabber = FFmpegFrameGrabber(element.sourcePath).apply { start() }
         videoRotations[element.id] = readVideoRotation(grabber)
-        if (grabber.lengthInTime > maxDurationUs) maxDurationUs = grabber.lengthInTime
+        if (grabber.lengthInTime in 1 until minDurationUs) minDurationUs = grabber.lengthInTime
         element to grabber
     }
-    if (maxDurationUs <= 0) maxDurationUs = 3_000_000L
+    if (minDurationUs == Long.MAX_VALUE || minDurationUs <= 0) minDurationUs = 3_000_000L
 
-    val totalFrames = ((maxDurationUs / 1_000_000.0) * fps).toInt()
-    val converter = Java2DFrameConverter()
+    val totalFrames = ((minDurationUs / 1_000_000.0) * fps).toInt()
+    // One converter per video element — Java2DFrameConverter reuses internal buffers,
+    // so sharing one converter across elements overwrites previously cached frames.
+    val videoConverters = videoElements.associate { it.id to Java2DFrameConverter() }
+    val compositeConverter = Java2DFrameConverter()
 
     // Cache static images
     val imageCache = imageElements.associateWith { element ->
@@ -106,7 +109,7 @@ private fun exportSlideAsVideo(
     for ((element, grabber) in videoGrabbers) {
         val frame = grabber.grabImage()
         if (frame != null) {
-            val bimg = converter.convert(frame)
+            val bimg = videoConverters[element.id]!!.convert(frame)
             if (bimg != null) {
                 val rot = videoRotations[element.id] ?: 0
                 videoFrameCache[element.id] = applyVideoRotation(bimg, rot)
@@ -149,7 +152,7 @@ private fun exportSlideAsVideo(
                     val frame = grabber.grabImage() ?: break
                     // Only convert the frame we'll actually use
                     if (grabber.timestamp >= targetUs - 50_000) {
-                        val bimg = converter.convert(frame)
+                        val bimg = videoConverters[element.id]!!.convert(frame)
                         if (bimg != null) {
                             val rot = videoRotations[element.id] ?: 0
                             videoFrameCache[element.id] = applyVideoRotation(bimg, rot)
@@ -185,7 +188,7 @@ private fun exportSlideAsVideo(
             drawTextOverlays(g2d, slide, width, height)
 
             g2d.dispose()
-            recorder.record(converter.convert(canvas))
+            recorder.record(compositeConverter.convert(canvas))
 
             // Record audio samples up to this timestamp
             if (audioSource != null) {
