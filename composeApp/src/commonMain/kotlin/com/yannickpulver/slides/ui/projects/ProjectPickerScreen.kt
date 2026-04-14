@@ -199,7 +199,7 @@ private fun ProjectCard(
                 if (firstSlide != null && firstSlide.elements.isNotEmpty()) {
                     SlidePreview(
                         slide = firstSlide,
-                        aspectRatio = AspectRatio.INSTAGRAM_PORTRAIT,
+                        aspectRatio = AspectRatio.PORTRAIT_4_3,
                         fillFraction = 1f,
                     )
                 } else {

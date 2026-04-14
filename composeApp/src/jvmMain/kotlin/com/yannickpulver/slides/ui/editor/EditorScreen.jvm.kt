@@ -84,8 +84,10 @@ private fun exportSlideAsVideo(
 
     // Open grabbers and probe durations
     var maxDurationUs = 0L
+    val videoRotations = mutableMapOf<String, Int>()
     val videoGrabbers = videoElements.map { element ->
         val grabber = FFmpegFrameGrabber(element.sourcePath).apply { start() }
+        videoRotations[element.id] = readVideoRotation(grabber)
         if (grabber.lengthInTime > maxDurationUs) maxDurationUs = grabber.lengthInTime
         element to grabber
     }
@@ -105,7 +107,10 @@ private fun exportSlideAsVideo(
         val frame = grabber.grabImage()
         if (frame != null) {
             val bimg = converter.convert(frame)
-            if (bimg != null) videoFrameCache[element.id] = bimg
+            if (bimg != null) {
+                val rot = videoRotations[element.id] ?: 0
+                videoFrameCache[element.id] = applyVideoRotation(bimg, rot)
+            }
         }
     }
 
@@ -145,7 +150,10 @@ private fun exportSlideAsVideo(
                     // Only convert the frame we'll actually use
                     if (grabber.timestamp >= targetUs - 50_000) {
                         val bimg = converter.convert(frame)
-                        if (bimg != null) videoFrameCache[element.id] = bimg
+                        if (bimg != null) {
+                            val rot = videoRotations[element.id] ?: 0
+                            videoFrameCache[element.id] = applyVideoRotation(bimg, rot)
+                        }
                     }
                 }
             }

@@ -6,3 +6,5 @@ actual fun loadImageBitmap(path: String): ImageBitmap? {
     // TODO: Implement Android image loading
     return null
 }
+
+actual fun getVideoInfo(path: String): VideoInfo = VideoInfo(0, 0, 0)

@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.dp
+import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.model.SlideTemplate
 import com.yannickpulver.slides.model.isSpanTemplate
@@ -335,6 +336,38 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                Row(
+                    modifier = Modifier
+                        .height(controlHeight)
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White),
+                ) {
+                    AspectRatio.entries.forEachIndexed { index, ratio ->
+                        val selected = state.project.aspectRatio == ratio
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer) else Modifier)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { viewModel.setAspectRatio(ratio) }
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                ratio.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        if (index < AspectRatio.entries.lastIndex) {
+                            Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
+                        }
+                    }
+                }
                 Text("Export:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(
                 modifier = Modifier

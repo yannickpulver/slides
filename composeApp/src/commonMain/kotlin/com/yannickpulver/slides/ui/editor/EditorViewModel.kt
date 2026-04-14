@@ -314,6 +314,10 @@ class EditorViewModel : ViewModel() {
         _state.update { it.copy(project = it.project.copy(name = name)) }
     }
 
+    fun setAspectRatio(ratio: AspectRatio) {
+        _state.update { it.copy(project = it.project.copy(aspectRatio = ratio)) }
+    }
+
     fun exportAllSlides(outputDir: String, scaleFactor: Int = 1) {
         val slides = _state.value.project.slides
         val aspectRatio = _state.value.project.aspectRatio

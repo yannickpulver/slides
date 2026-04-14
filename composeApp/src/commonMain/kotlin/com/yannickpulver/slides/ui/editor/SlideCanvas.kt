@@ -894,14 +894,28 @@ private fun VideoSlotContent(
     }
     val density = LocalDensity.current
 
-    // Get dimensions from player metadata
-    val meta = playerState.metadata
-    val videoW = meta.width
-    val videoH = meta.height
+    // Read video rotation + coded dimensions from FFmpeg (immediate, no async wait)
+    val videoInfo = remember(element.sourcePath) { getVideoInfo(element.sourcePath) }
+    val rotation = videoInfo.rotation
+    val swapDimensions = rotation == 90 || rotation == 270
 
-    LaunchedEffect(videoW, videoH) {
-        if (videoW != null && videoH != null && videoW > 0 && videoH > 0) {
-            onImageSizeKnown(videoW, videoH)
+    // Use player metadata when available, fall back to FFmpeg coded dimensions
+    val meta = playerState.metadata
+    val iw = (meta.width ?: if (swapDimensions) videoInfo.codedHeight else videoInfo.codedWidth).toFloat()
+    val ih = (meta.height ?: if (swapDimensions) videoInfo.codedWidth else videoInfo.codedHeight).toFloat()
+
+    LaunchedEffect(meta.width, meta.height) {
+        val w = meta.width; val h = meta.height
+        if (w != null && h != null && w > 0 && h > 0) {
+            onImageSizeKnown(w, h)
+        }
+    }
+    // Report FFmpeg dimensions immediately if player metadata not ready yet
+    LaunchedEffect(Unit) {
+        if (videoInfo.codedWidth > 0 && videoInfo.codedHeight > 0) {
+            val w = if (swapDimensions) videoInfo.codedHeight else videoInfo.codedWidth
+            val h = if (swapDimensions) videoInfo.codedWidth else videoInfo.codedHeight
+            onImageSizeKnown(w, h)
         }
     }
 
@@ -917,9 +931,6 @@ private fun VideoSlotContent(
             println("Video playback failed: ${e.message}")
         }
     }
-
-    val iw = videoW?.toFloat() ?: 0f
-    val ih = videoH?.toFloat() ?: 0f
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         if (iw > 0 && ih > 0 && slotSize.width > 0) {
@@ -940,16 +951,20 @@ private fun VideoSlotContent(
             )
             val drawWDp = with(density) { frame.drawWidth.toDp() }
             val drawHDp = with(density) { frame.drawHeight.toDp() }
+            // Swap surface dimensions for 90/270° so FillBounds preserves coded aspect ratio
+            val surfaceW = if (swapDimensions) drawHDp else drawWDp
+            val surfaceH = if (swapDimensions) drawWDp else drawHDp
 
             VideoPlayerSurface(
                 playerState = playerState,
                 modifier = Modifier
-                    .requiredSize(drawWDp, drawHDp)
-                    .offset { IntOffset(frame.shiftX.roundToInt(), frame.shiftY.roundToInt()) },
+                    .requiredSize(surfaceW, surfaceH)
+                    .offset { IntOffset(frame.shiftX.roundToInt(), frame.shiftY.roundToInt()) }
+                    .graphicsLayer { rotationZ = rotation.toFloat() },
                 contentScale = ContentScale.FillBounds,
             )
         } else {
-            // Before metadata is ready, show fill with crop
+            // Before dimensions are ready, show fill with crop
             VideoPlayerSurface(
                 playerState = playerState,
                 modifier = Modifier.fillMaxSize(),
@@ -1798,6 +1813,10 @@ private fun fileDropTarget(onFiles: (List<String>) -> Unit): DragAndDropTarget {
 }
 
 expect fun loadImageBitmap(path: String): ImageBitmap?
+
+data class VideoInfo(val rotation: Int, val codedWidth: Int, val codedHeight: Int)
+
+expect fun getVideoInfo(path: String): VideoInfo
 
 private fun String.toFileUri(): String =
     "file://" + replace(" ", "%20")

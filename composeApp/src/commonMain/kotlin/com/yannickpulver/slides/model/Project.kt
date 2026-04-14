@@ -9,11 +9,12 @@ import kotlin.uuid.Uuid
 data class Project(
     val id: String = Uuid.random().toString(),
     val name: String = "Untitled",
-    val aspectRatio: AspectRatio = AspectRatio.INSTAGRAM_PORTRAIT,
+    val aspectRatio: AspectRatio = AspectRatio.PORTRAIT_4_3,
     val slides: List<Slide> = listOf(Slide()),
 )
 
 @Serializable
-enum class AspectRatio(val width: Int, val height: Int) {
-    INSTAGRAM_PORTRAIT(1080, 1440),
+enum class AspectRatio(val width: Int, val height: Int, val label: String) {
+    PORTRAIT_4_3(1080, 1440, "4:3"),
+    PORTRAIT_16_9(1080, 1920, "16:9"),
 }

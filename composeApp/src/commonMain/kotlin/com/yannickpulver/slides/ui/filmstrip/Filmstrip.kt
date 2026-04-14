@@ -221,7 +221,7 @@ private fun SlideThumbnail(
                 if (slide.elements.isNotEmpty()) {
                     SlidePreview(
                         slide = slide,
-                        aspectRatio = AspectRatio.INSTAGRAM_PORTRAIT,
+                        aspectRatio = AspectRatio.PORTRAIT_4_3,
                         fillFraction = 1f,
                     )
                 }

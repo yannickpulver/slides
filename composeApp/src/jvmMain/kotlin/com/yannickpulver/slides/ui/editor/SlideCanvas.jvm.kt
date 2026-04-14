@@ -134,14 +134,69 @@ private fun applyExifOrientation(image: BufferedImage, orientation: Int): Buffer
     return result
 }
 
+internal fun readVideoRotation(grabber: FFmpegFrameGrabber): Int {
+    return try {
+        // displayRotation reads the display matrix side data (modern videos)
+        val dr = grabber.displayRotation
+        if (dr != 0.0) {
+            // displayRotation is negative for CW rotation, normalize to positive degrees
+            return (((-dr).toInt() % 360) + 360) % 360
+        }
+        // Fallback to metadata tag (older videos)
+        val rotate = grabber.videoMetadata?.get("rotate")?.toIntOrNull()
+            ?: grabber.metadata?.get("rotate")?.toIntOrNull()
+        if (rotate != null) ((rotate % 360) + 360) % 360 else 0
+    } catch (_: Exception) {
+        0
+    }
+}
+
+internal fun applyVideoRotation(image: BufferedImage, rotation: Int): BufferedImage {
+    if (rotation == 0) return image
+    val w = image.width
+    val h = image.height
+    val swap = rotation == 90 || rotation == 270
+    val newW = if (swap) h else w
+    val newH = if (swap) w else h
+    val transform = AffineTransform()
+    when (rotation) {
+        90 -> { transform.translate(h.toDouble(), 0.0); transform.rotate(Math.PI / 2) }
+        180 -> { transform.translate(w.toDouble(), h.toDouble()); transform.rotate(Math.PI) }
+        270 -> { transform.translate(0.0, w.toDouble()); transform.rotate(-Math.PI / 2) }
+    }
+    val result = BufferedImage(newW, newH, image.type.takeIf { it != 0 } ?: BufferedImage.TYPE_INT_ARGB)
+    val g = result.createGraphics()
+    g.transform(transform)
+    g.drawImage(image, 0, 0, null)
+    g.dispose()
+    return result
+}
+
+actual fun getVideoInfo(path: String): VideoInfo {
+    val grabber = FFmpegFrameGrabber(path)
+    return try {
+        grabber.start()
+        VideoInfo(
+            rotation = readVideoRotation(grabber),
+            codedWidth = grabber.imageWidth,
+            codedHeight = grabber.imageHeight,
+        )
+    } catch (_: Exception) {
+        VideoInfo(0, 0, 0)
+    } finally {
+        try { grabber.stop(); grabber.release() } catch (_: Exception) {}
+    }
+}
+
 private fun loadVideoThumbnail(path: String): ImageBitmap? {
     val grabber = FFmpegFrameGrabber(path)
     val converter = Java2DFrameConverter()
     return try {
         grabber.start()
+        val rotation = readVideoRotation(grabber)
         val frame = grabber.grabKeyFrame() ?: grabber.grabImage()
-        val bufferedImage = frame?.let { converter.convert(it) }
-        bufferedImage?.toComposeImageBitmap()
+        val bufferedImage = frame?.let { converter.convert(it) } ?: return null
+        applyVideoRotation(bufferedImage, rotation).toComposeImageBitmap()
     } finally {
         grabber.stop()
         grabber.release()
