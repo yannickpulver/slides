@@ -914,15 +914,24 @@ private fun VideoSlotContent(
     }
 
     val playerState = rememberVideoPlayerState()
+    val playerStopped = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
     DisposableEffect(element.id) {
+        playerStopped.set(false)
         onDispose {
-            playerState.pause()
+            playerStopped.set(true)
+            try { playerState.stop() } catch (_: Exception) {}
         }
     }
 
     LaunchedEffect(Unit) {
-        onToggleReady { if (playerState.isPlaying) playerState.pause() else playerState.play() }
+        onToggleReady {
+            if (!playerStopped.get()) {
+                try {
+                    if (playerState.isPlaying) playerState.pause() else playerState.play()
+                } catch (_: Exception) {}
+            }
+        }
     }
     val density = LocalDensity.current
 
@@ -941,12 +950,16 @@ private fun VideoSlotContent(
         try {
             // Give AVFoundation time to fully release previous player resources
             kotlinx.coroutines.delay(300)
+            if (playerStopped.get()) return@LaunchedEffect
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                if (playerStopped.get()) return@withContext
                 playerState.openUri(element.sourcePath.toFileUri())
                 playerState.loop = true
                 playerState.volume = 0f
                 playerState.play()
             }
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            // Coroutine cancelled during slide switch — expected
         } catch (e: Exception) {
             println("Video playback failed: ${e.message}")
         }
