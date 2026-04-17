@@ -1,0 +1,81 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. 1.5.3)"
+        required: true
+
+jobs:
+  update-cask:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag and version
+        id: ver
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download assets and compute sha256
+        id: sha
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          TAG="${{ steps.ver.outputs.tag }}"
+          BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
+          curl -fsSL -o arm.zip "$BASE/slides-$V-mac-aarch64.zip"
+          curl -fsSL -o x86.zip "$BASE/slides-$V-mac-amd64.zip"
+          SHA_ARM=$(sha256sum arm.zip | cut -d' ' -f1)
+          SHA_X86=$(sha256sum x86.zip | cut -d' ' -f1)
+          echo "sha_arm=$SHA_ARM" >> "$GITHUB_OUTPUT"
+          echo "sha_x86=$SHA_X86" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: yannickpulver/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Write cask
+        run: |
+          cat > tap/Casks/slides.rb <<EOF
+          cask "slides" do
+            version "${{ steps.ver.outputs.version }}"
+
+            on_arm do
+              sha256 "${{ steps.sha.outputs.sha_arm }}"
+              url "https://github.com/yannickpulver/slides/releases/download/#{version}/slides-#{version}-mac-aarch64.zip"
+            end
+
+            on_intel do
+              sha256 "${{ steps.sha.outputs.sha_x86 }}"
+              url "https://github.com/yannickpulver/slides/releases/download/#{version}/slides-#{version}-mac-amd64.zip"
+            end
+
+            name "Slides"
+            desc "Compose Multiplatform slides app"
+            homepage "https://github.com/yannickpulver/slides"
+
+            app "Slides.app"
+
+            zap trash: [
+              "~/Library/Application Support/Slides",
+              "~/Library/Preferences/com.yannickpulver.slides.plist",
+            ]
+          end
+          EOF
+
+      - name: Commit and push
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/slides.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "slides ${{ steps.ver.outputs.version }}"
+          git push
