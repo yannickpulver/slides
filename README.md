@@ -4,6 +4,12 @@ A desktop slide editor built with Compose Multiplatform for creating Instagram-s
 
 ![Slides](screenshot.png)
 
+## Install
+
+```sh
+brew install --cask yannickpulver/tap/slides
+```
+
 ## Features
 
 - Drag & drop images and videos into slides
