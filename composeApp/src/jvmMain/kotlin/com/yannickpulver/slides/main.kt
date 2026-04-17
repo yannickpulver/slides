@@ -26,6 +26,7 @@ import io.github.vinceglb.filekit.path
 import java.io.File
 
 fun main() {
+    System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
     FileKit.init(appId = "com.yannickpulver.slides")
     application {
         val projectStore = remember { ProjectStore() }

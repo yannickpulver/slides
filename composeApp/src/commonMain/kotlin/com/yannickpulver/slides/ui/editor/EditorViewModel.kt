@@ -151,6 +151,7 @@ class EditorViewModel : ViewModel() {
                 type = type,
                 bounds = bounds,
                 zIndex = slotIndex,
+                backgroundColorArgb = slide.backgroundColorArgb,
             )
 
             // Replace existing element with same bounds, or append
@@ -533,7 +534,10 @@ class EditorViewModel : ViewModel() {
                 frameBorderPx = frameBorderPx ?: el.frameBorderPx,
                 backgroundColorArgb = backgroundColorArgb ?: el.backgroundColorArgb,
             )
-            val updatedSlide = slide.copy(elements = slide.elements.map { applyStyle(it) })
+            val updatedSlide = slide.copy(
+                elements = slide.elements.map { applyStyle(it) },
+                backgroundColorArgb = backgroundColorArgb ?: slide.backgroundColorArgb,
+            )
             state.copy(
                 project = state.project.copy(
                     slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }

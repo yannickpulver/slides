@@ -196,9 +196,9 @@ private fun SlideThumbnail(
     val borderColor = when {
         isSelected -> MaterialTheme.colorScheme.primary
         isInSelectedGroup -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-        else -> Color.LightGray
+        else -> Color.Transparent
     }
-    val borderWidth = if (isSelected || isInSelectedGroup) 2.dp else 1.dp
+    val borderWidth = if (isSelected || isInSelectedGroup) 2.dp else 0.dp
 
     Box(modifier = modifier) {
         Column(
@@ -216,7 +216,10 @@ private fun SlideThumbnail(
                     .aspectRatio(ratio)
                     .clip(RoundedCornerShape(4.dp))
                     .clipToBounds()
-                    .background(Color.White),
+                    .background(
+                        if (slide.elements.isNotEmpty()) Color.White
+                        else MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
             ) {
                 if (slide.elements.isNotEmpty()) {
                     SlidePreview(

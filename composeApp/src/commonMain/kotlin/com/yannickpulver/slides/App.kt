@@ -1,8 +1,11 @@
 package com.yannickpulver.slides
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -15,23 +18,28 @@ import com.yannickpulver.slides.ui.editor.EditorViewModel
 import com.yannickpulver.slides.ui.projects.ProjectPickerScreen
 import com.yannickpulver.slides.ui.theme.AppTypography
 
-private val GrayColorScheme = lightColorScheme(
-    primary = Color(0xFF616161),
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFE0E0E0),
-    onPrimaryContainer = Color(0xFF1A1A1A),
-    secondary = Color(0xFF757575),
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFEEEEEE),
-    onSecondaryContainer = Color(0xFF1A1A1A),
-    surface = Color(0xFFFAFAFA),
-    onSurface = Color(0xFF1A1A1A),
-    surfaceVariant = Color(0xFFF5F5F5),
-    onSurfaceVariant = Color(0xFF424242),
-    surfaceContainerLow = Color(0xFFF0F0F0),
-    surfaceContainer = Color(0xFFEAEAEA),
-    outline = Color(0xFFBDBDBD),
-    outlineVariant = Color(0xFFE0E0E0),
+private val GrayColorScheme = darkColorScheme(
+    primary = Color(0xFFBDBDBD),
+    onPrimary = Color(0xFF171717),
+    primaryContainer = Color(0xFF3A3A3A),
+    onPrimaryContainer = Color(0xFFEAEAEA),
+    secondary = Color(0xFFA0A0A0),
+    onSecondary = Color(0xFF171717),
+    secondaryContainer = Color(0xFF333333),
+    onSecondaryContainer = Color(0xFFEAEAEA),
+    background = Color(0xFF171717),
+    onBackground = Color(0xFFEAEAEA),
+    surface = Color(0xFF171717),
+    onSurface = Color(0xFFEAEAEA),
+    surfaceVariant = Color(0xFF272727),
+    onSurfaceVariant = Color(0xFFBDBDBD),
+    surfaceContainerLowest = Color(0xFF121212),
+    surfaceContainerLow = Color(0xFF1E1E1E),
+    surfaceContainer = Color(0xFF272727),
+    surfaceContainerHigh = Color(0xFF303030),
+    surfaceContainerHighest = Color(0xFF3A3A3A),
+    outline = Color(0xFF5A5A5A),
+    outlineVariant = Color(0xFF3A3A3A),
 )
 
 enum class Screen { ProjectPicker, Editor }
@@ -48,15 +56,17 @@ fun App(
     onBackToProjects: () -> Unit,
 ) {
     MaterialTheme(colorScheme = GrayColorScheme, typography = AppTypography()) {
-        when (currentScreen) {
-            Screen.ProjectPicker -> ProjectPickerScreen(
-                projects = projects,
-                firstSlides = firstSlides,
-                onCreateProject = onCreateProject,
-                onOpenProject = onOpenProject,
-                onDeleteProject = onDeleteProject,
-            )
-            Screen.Editor -> EditorScreen(viewModel, onBack = onBackToProjects)
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            when (currentScreen) {
+                Screen.ProjectPicker -> ProjectPickerScreen(
+                    projects = projects,
+                    firstSlides = firstSlides,
+                    onCreateProject = onCreateProject,
+                    onOpenProject = onOpenProject,
+                    onDeleteProject = onDeleteProject,
+                )
+                Screen.Editor -> EditorScreen(viewModel, onBack = onBackToProjects)
+            }
         }
     }
 }

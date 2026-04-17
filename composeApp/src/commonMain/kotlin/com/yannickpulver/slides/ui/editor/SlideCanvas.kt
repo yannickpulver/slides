@@ -149,11 +149,9 @@ fun SlideCanvas(
                 .fillMaxHeight(0.9f)
                 .aspectRatio(ratio)
                 .background(
-                    if (slide.gapPx > 0f && slide.elements.isNotEmpty())
-                        slide.elements.first().backgroundColorArgb.toComposeColor()
+                    if (slide.gapPx > 0f) slide.backgroundColorArgb.toComposeColor()
                     else Color.White
                 )
-                .border(1.dp, Color.LightGray)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -410,11 +408,13 @@ private fun SpanSliceContent(
     onImageSizeKnown: (Int, Int) -> Unit,
 ) {
     var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
+    var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
     LaunchedEffect(element.sourcePath) {
         if (bitmap == null) {
             bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 loadCachedBitmap(element.sourcePath)
             }
+            loading = false
         }
     }
     val density = LocalDensity.current
@@ -464,7 +464,7 @@ private fun SpanSliceContent(
         }
         else -> {
             Box(Modifier.fillMaxSize().background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                if (loading) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
             }
         }
     }
@@ -796,11 +796,13 @@ private fun ImageSlotContent(
     onImageSizeKnown: (Int, Int) -> Unit,
 ) {
     var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
+    var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
     LaunchedEffect(element.sourcePath) {
         if (bitmap == null) {
             bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 loadCachedBitmap(element.sourcePath)
             }
+            loading = false
         }
     }
     val density = LocalDensity.current
@@ -843,7 +845,7 @@ private fun ImageSlotContent(
         }
         else -> {
             Box(Modifier.fillMaxSize().background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                if (loading) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
             }
         }
     }
@@ -1046,7 +1048,7 @@ fun TemplatePickerBar(
     Row(
         modifier = modifier
             .shadow(4.dp, RoundedCornerShape(50))
-            .background(Color.White, RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1085,8 +1087,8 @@ fun SlideControls(
     onAddText: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val currentColor = representativeElement.backgroundColorArgb.toComposeColor()
-    val usesCustomColor = representativeElement.backgroundColorArgb != WHITE_BACKGROUND && representativeElement.backgroundColorArgb != BLACK_BACKGROUND
+    val currentColor = slide.backgroundColorArgb.toComposeColor()
+    val usesCustomColor = slide.backgroundColorArgb != WHITE_BACKGROUND && slide.backgroundColorArgb != BLACK_BACKGROUND
     val launchSystemColorPicker = rememberSystemColorPickerLauncher(onBackgroundColorChanged)
     var borderInput by remember(slide.id) {
         mutableStateOf(representativeElement.frameBorderPx.roundToInt().toString())
@@ -1103,7 +1105,7 @@ fun SlideControls(
     Row(
         modifier = modifier
             .shadow(4.dp, RoundedCornerShape(50))
-            .background(Color.White, RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1122,7 +1124,7 @@ fun SlideControls(
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .background(if (selected) Color.White else Color.Transparent)
                             .pointerHoverIcon(PointerIcon.Hand)
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
@@ -1134,7 +1136,7 @@ fun SlideControls(
                         Text(
                             label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (selected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     if (index == 0) {
@@ -1181,20 +1183,20 @@ fun SlideControls(
         // Color bubbles
         ColorBubble(
             color = WHITE_BACKGROUND.toComposeColor(),
-            selected = representativeElement.backgroundColorArgb == WHITE_BACKGROUND,
+            selected = slide.backgroundColorArgb == WHITE_BACKGROUND,
             onClick = { onBackgroundColorChanged(WHITE_BACKGROUND) },
             size = controlHeight,
         )
         ColorBubble(
             color = BLACK_BACKGROUND.toComposeColor(),
-            selected = representativeElement.backgroundColorArgb == BLACK_BACKGROUND,
+            selected = slide.backgroundColorArgb == BLACK_BACKGROUND,
             onClick = { onBackgroundColorChanged(BLACK_BACKGROUND) },
             size = controlHeight,
         )
         ColorBubble(
             color = currentColor,
             selected = usesCustomColor,
-            onClick = { launchSystemColorPicker(representativeElement.backgroundColorArgb) },
+            onClick = { launchSystemColorPicker(slide.backgroundColorArgb) },
             label = "+",
             size = controlHeight,
         )
@@ -1297,7 +1299,7 @@ fun TextOverlayControls(
     Row(
         modifier = modifier
             .shadow(4.dp, RoundedCornerShape(50))
-            .background(Color.White, RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1326,7 +1328,7 @@ fun TextOverlayControls(
             DropdownMenu(
                 expanded = fontExpanded,
                 onDismissRequest = { fontExpanded = false; fontSearch = "" },
-                modifier = Modifier.width(240.dp).background(Color.White),
+                modifier = Modifier.width(240.dp).background(MaterialTheme.colorScheme.surfaceContainer),
             ) {
                 // Search field
                 val searchFocusRequester = remember { FocusRequester() }
@@ -1342,7 +1344,7 @@ fun TextOverlayControls(
                     decorationBox = { inner ->
                         Box {
                             if (fontSearch.isEmpty()) {
-                                Text("Search fonts…", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                Text("Search fonts…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             inner()
                         }
@@ -1506,10 +1508,10 @@ private fun PxInputField(
         modifier = Modifier
             .width(64.dp)
             .height(controlHeight)
-            .background(Color.White, RoundedCornerShape(6.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(6.dp))
             .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
             .padding(horizontal = 8.dp),
-        textStyle = MaterialTheme.typography.bodyMedium,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
         decorationBox = { innerTextField ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1872,11 +1874,9 @@ fun SlidePreview(
                 .fillMaxHeight(fillFraction)
                 .aspectRatio(ratio)
                 .background(
-                    if (slide.gapPx > 0f && slide.elements.isNotEmpty())
-                        slide.elements.first().backgroundColorArgb.toComposeColor()
+                    if (slide.gapPx > 0f) slide.backgroundColorArgb.toComposeColor()
                     else Color.White
                 )
-                .border(1.dp, Color.LightGray)
                 .clipToBounds(),
         ) {
             val gapDp = slide.gapPx.dp
@@ -1927,6 +1927,7 @@ private fun PreviewSlotContent(
     spanCount: Int = 1,
 ) {
     var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
+    var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
     var slotSize by remember { mutableStateOf(IntSize.Zero) }
     val density = LocalDensity.current
 
@@ -1935,6 +1936,7 @@ private fun PreviewSlotContent(
             bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 loadCachedBitmap(element.sourcePath)
             }
+            loading = false
         }
     }
 
@@ -2001,7 +2003,7 @@ private fun PreviewSlotContent(
                 .background(element.backgroundColorArgb.toComposeColor()),
             contentAlignment = Alignment.Center,
         ) {
-            if (currentBitmap == null) {
+            if (currentBitmap == null && loading) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 1.5.dp)
             }
         }

@@ -13,17 +13,36 @@ private val videoExtensions = setOf("mp4", "mov", "avi", "mkv", "webm")
 
 private const val MAX_CANVAS_PX = 2048
 
+private val thumbCacheDir: File =
+    File(System.getProperty("user.home"), ".slides/thumbs").also { it.mkdirs() }
+
+private fun thumbCacheFile(file: File): File {
+    val raw = "${file.absolutePath}|${file.lastModified()}|${file.length()}"
+    val hash = java.security.MessageDigest.getInstance("SHA-1")
+        .digest(raw.toByteArray())
+        .joinToString("") { "%02x".format(it) }
+    return File(thumbCacheDir, "$hash.png")
+}
+
 actual fun loadImageBitmap(path: String): ImageBitmap? {
     return try {
         val file = File(path)
         if (!file.exists()) return null
-        val ext = file.extension.lowercase()
-        if (ext in videoExtensions) {
-            loadVideoThumbnail(path)
-        } else {
-            val corrected = loadExifCorrectedImage(file) ?: return null
-            downscale(corrected).toComposeImageBitmap()
+        val cached = thumbCacheFile(file)
+        if (cached.exists()) {
+            return ImageIO.read(cached)?.toComposeImageBitmap()
         }
+        val ext = file.extension.lowercase()
+        val source = if (ext in videoExtensions) {
+            loadVideoThumbnailBuffered(path)
+        } else {
+            loadExifCorrectedImage(file)
+        } ?: return null
+        val downscaled = downscale(source)
+        try {
+            ImageIO.write(downscaled, "png", cached)
+        } catch (_: Exception) {}
+        downscaled.toComposeImageBitmap()
     } catch (e: Exception) {
         null
     }
@@ -188,7 +207,7 @@ actual fun getVideoInfo(path: String): VideoInfo {
     }
 }
 
-private fun loadVideoThumbnail(path: String): ImageBitmap? {
+private fun loadVideoThumbnailBuffered(path: String): BufferedImage? {
     val grabber = FFmpegFrameGrabber(path)
     val converter = Java2DFrameConverter()
     return try {
@@ -196,7 +215,7 @@ private fun loadVideoThumbnail(path: String): ImageBitmap? {
         val rotation = readVideoRotation(grabber)
         val frame = grabber.grabKeyFrame() ?: grabber.grabImage()
         val bufferedImage = frame?.let { converter.convert(it) } ?: return null
-        applyVideoRotation(bufferedImage, rotation).toComposeImageBitmap()
+        applyVideoRotation(bufferedImage, rotation)
     } finally {
         grabber.stop()
         grabber.release()

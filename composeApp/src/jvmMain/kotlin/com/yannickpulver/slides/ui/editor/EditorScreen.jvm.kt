@@ -40,8 +40,8 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
     val canvas = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
     val g2d = canvas.createGraphics()
     setupGraphics(g2d)
-    val bgColor = if (slide.gapPx > 0f && slide.elements.isNotEmpty())
-        awtColor(slide.elements.first().backgroundColorArgb)
+    val bgColor = if (slide.gapPx > 0f)
+        awtColor(slide.backgroundColorArgb)
     else java.awt.Color.WHITE
     g2d.color = bgColor
     g2d.fillRect(0, 0, width, height)
@@ -165,8 +165,8 @@ private fun exportSlideAsVideo(
             val canvas = BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR)
             val g2d = canvas.createGraphics()
             setupGraphics(g2d)
-            val videoBgColor = if (slide.gapPx > 0f && slide.elements.isNotEmpty())
-                awtColor(slide.elements.first().backgroundColorArgb)
+            val videoBgColor = if (slide.gapPx > 0f)
+                awtColor(slide.backgroundColorArgb)
             else java.awt.Color.WHITE
             g2d.color = videoBgColor
             g2d.fillRect(0, 0, width, height)

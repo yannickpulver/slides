@@ -66,7 +66,7 @@ fun ProjectPickerScreen(
     onOpenProject: (ProjectEntry) -> Unit,
     onDeleteProject: (ProjectEntry) -> Unit,
 ) {
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xFFE8E8E8))) {
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
             modifier = Modifier
                 .widthIn(max = 900.dp)
@@ -74,13 +74,6 @@ fun ProjectPickerScreen(
                 .padding(48.dp)
                 .align(Alignment.TopCenter),
         ) {
-            Text(
-                "Slides",
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.height(32.dp))
-
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(180.dp),
                 modifier = Modifier.weight(1f),
@@ -120,8 +113,8 @@ private fun NewProjectCard(onClick: () -> Unit) {
                 indication = null,
                 onClick = onClick,
             ),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         // Use same aspect ratio as ProjectCard (3:4 preview + bottom row) to match height
         Box(
@@ -181,8 +174,8 @@ private fun ProjectCard(
                 indication = null,
                 onClick = onClick,
             ),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
         Column {
             // 3:4 slide preview
@@ -190,10 +183,12 @@ private fun ProjectCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(3f / 4f)
-                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                     .clipToBounds()
                     .graphicsLayer { scaleX = scale; scaleY = scale }
-                    .background(Color.White),
+                    .background(
+                        if (firstSlide != null && firstSlide.elements.isNotEmpty()) Color.White
+                        else MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 if (firstSlide != null && firstSlide.elements.isNotEmpty()) {

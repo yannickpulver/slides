@@ -61,7 +61,7 @@ import com.yannickpulver.slides.model.SlideTemplate
 import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.ui.filmstrip.Filmstrip
 import compose.icons.TablerIcons
-import compose.icons.tablericons.ArrowLeft
+import compose.icons.tablericons.ChevronLeft
 import compose.icons.tablericons.Download
 import compose.icons.tablericons.Plus
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
@@ -96,6 +96,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                         }
                         event.key == Key.DirectionLeft -> { viewModel.selectPreviousSlide(); true }
                         event.key == Key.DirectionRight -> { viewModel.selectNextSlide(); true }
+                        event.key == Key.Escape && onBack != null -> { onBack(); true }
                         else -> false
                     }
                 } else false
@@ -255,7 +256,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                 ) {
                     Icon(
-                        TablerIcons.ArrowLeft,
+                        TablerIcons.ChevronLeft,
                         contentDescription = "Back to slides",
                         modifier = Modifier.size(20.dp),
                     )
@@ -342,8 +343,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     modifier = Modifier
                         .height(controlHeight)
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White),
+                        .clip(RoundedCornerShape(6.dp)),
                 ) {
                     AspectRatio.entries.forEachIndexed { index, ratio ->
                         val selected = state.project.aspectRatio == ratio
@@ -351,7 +351,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .pointerHoverIcon(PointerIcon.Hand)
-                                .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer) else Modifier)
+                                .then(if (selected) Modifier.background(Color.White) else Modifier)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
@@ -362,7 +362,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                             Text(
                                 ratio.label,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                                color = if (selected) Color.Black else MaterialTheme.colorScheme.onSurface,
                             )
                         }
                         if (index < AspectRatio.entries.lastIndex) {
@@ -375,8 +375,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 modifier = Modifier
                     .height(controlHeight)
                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.White),
+                    .clip(RoundedCornerShape(6.dp)),
             ) {
                 listOf(1, 2).forEachIndexed { index, scale ->
                     Box(
