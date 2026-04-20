@@ -529,20 +529,20 @@ class EditorViewModel : ViewModel() {
         pushUndo()
         _state.update { state ->
             val slide = state.currentSlide ?: return@update state
+            val gid = slide.spanGroupId
             fun applyStyle(el: MediaElement) = el.copy(
                 fitMode = fitMode ?: el.fitMode,
                 frameBorderPx = frameBorderPx ?: el.frameBorderPx,
                 backgroundColorArgb = backgroundColorArgb ?: el.backgroundColorArgb,
             )
-            val updatedSlide = slide.copy(
-                elements = slide.elements.map { applyStyle(it) },
-                backgroundColorArgb = backgroundColorArgb ?: slide.backgroundColorArgb,
-            )
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
-                ),
-            )
+            val updatedSlides = state.project.slides.map { s ->
+                val matches = s.id == slide.id || (gid != null && s.spanGroupId == gid)
+                if (matches) s.copy(
+                    elements = s.elements.map { applyStyle(it) },
+                    backgroundColorArgb = backgroundColorArgb ?: s.backgroundColorArgb,
+                ) else s
+            }
+            state.copy(project = state.project.copy(slides = updatedSlides))
         }
     }
 

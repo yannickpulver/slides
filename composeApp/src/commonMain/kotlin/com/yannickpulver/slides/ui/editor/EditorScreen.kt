@@ -1,11 +1,12 @@
 package com.yannickpulver.slides.ui.editor
 
-import com.yannickpulver.slides.model.ElementBounds
-import com.yannickpulver.slides.model.MediaElement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -16,12 +17,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,16 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isMetaPressed
@@ -51,19 +45,14 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.model.Slide
-import com.yannickpulver.slides.model.SlideTemplate
-import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.ui.filmstrip.Filmstrip
-import compose.icons.TablerIcons
-import compose.icons.tablericons.ChevronLeft
-import compose.icons.tablericons.Download
-import compose.icons.tablericons.Plus
 import io.github.vinceglb.filekit.dialogs.compose.rememberDirectoryPickerLauncher
 import io.github.vinceglb.filekit.path
 
@@ -71,18 +60,26 @@ import io.github.vinceglb.filekit.path
 fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
     val state by viewModel.state.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    val project = state.project
+    val slides = project.slides
     val currentSlide = state.currentSlide
     val spanGroup = state.currentSpanGroup
-    val isSpanActive = spanGroup != null && spanGroup.size > 1
-    val representativeElement = currentSlide?.elements?.firstOrNull()
-    val showControls = currentSlide != null && currentSlide.hasChosenTemplate
-    val showTemplatePicker = currentSlide != null && !currentSlide.hasChosenTemplate
+    val selectedElement = currentSlide?.elements?.find { it.id == state.selectedElementId }
+        ?: currentSlide?.elements?.firstOrNull()
+    val selectedTextOverlay = currentSlide?.textOverlays?.find { it.id == state.selectedTextOverlayId }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(state.selectedSlideId) { focusRequester.requestFocus() }
+
+    var exportScale by remember { mutableStateOf(2) }
+    val dirLauncher = rememberDirectoryPickerLauncher { dir ->
+        dir?.path?.let { viewModel.exportAllSlides(it, exportScale) }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { event ->
@@ -103,140 +100,73 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             },
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            val slides = state.project.slides
-            val currentIdx = state.currentSlideIndex
-            val aspectRatio = state.project.aspectRatio
+            EditorTopBar(
+                projectName = project.name,
+                slideCount = slides.size,
+                aspectRatio = project.aspectRatio,
+                onNameChanged = viewModel::updateProjectName,
+                onAspectRatio = viewModel::setAspectRatio,
+                onBack = onBack,
+            )
 
-            // For span groups, prev/next should skip to outside the group
-            val prevSlide: Slide?
-            val nextSlide: Slide?
-            if (isSpanActive && spanGroup != null) {
-                val firstIdx = slides.indexOf(spanGroup.first())
-                val lastIdx = slides.indexOf(spanGroup.last())
-                prevSlide = slides.getOrNull(firstIdx - 1)
-                nextSlide = slides.getOrNull(lastIdx + 1)
-            } else {
-                prevSlide = slides.getOrNull(currentIdx - 1)
-                nextSlide = slides.getOrNull(currentIdx + 1)
-            }
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                SlidesRowCanvas(
+                    slides = slides,
+                    aspectRatio = project.aspectRatio,
+                    selectedSlideId = state.selectedSlideId,
+                    selectedElementId = state.selectedElementId,
+                    selectedTextOverlayId = state.selectedTextOverlayId,
+                    spanGroup = spanGroup,
+                    onSelectSlide = viewModel::selectSlide,
+                    onSelectElement = viewModel::selectElement,
+                    onCanvasClick = {
+                        viewModel.selectElement(null); viewModel.selectTextOverlay(null)
+                        focusRequester.requestFocus()
+                    },
+                    onAddImageAtSlot = viewModel::addElementAtSlot,
+                    onTemplateSelected = viewModel::applyTemplate,
+                    onElementCropChanged = viewModel::updateElementCrop,
+                    onTextOverlayClick = viewModel::selectTextOverlay,
+                    onTextOverlayPositionChanged = viewModel::updateTextOverlayPosition,
+                    onTextOverlayWidthChanged = viewModel::updateTextOverlayWidth,
+                    onTextOverlayTextChanged = viewModel::updateTextOverlayText,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                )
 
-            BoxWithConstraints(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                    .padding(top = 74.dp),
-            ) {
-                val density = LocalDensity.current
-                val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
-                val slideWidth = maxHeight * 0.9f * ratio
-                val shiftPx = with(density) { (slideWidth + 24.dp).toPx() }
-                val edgeWidth = (maxWidth - slideWidth) / 2
-
-                // Current slide (full size) or span preview
-                if (isSpanActive && spanGroup != null) {
-                    SpanCanvasPreview(
-                        slides = spanGroup,
-                        aspectRatio = aspectRatio,
-                        onElementCropChanged = { id, ox, oy, s -> viewModel.updateElementCrop(id, ox, oy, s) },
-                        onAddImageAtSlot = { slotIndex, path -> viewModel.addElementAtSlot(slotIndex, path) },
-                        onTemplateSelected = { viewModel.applyTemplate(it) },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                } else {
-                    SlideCanvas(
-                        slide = state.currentSlide,
-                        aspectRatio = aspectRatio,
-                        selectedElementId = state.selectedElementId,
-                        selectedTextOverlayId = state.selectedTextOverlayId,
-                        currentTemplate = state.currentSlide?.template,
-                        onElementClick = viewModel::selectElement,
-                        onCanvasClick = { viewModel.selectElement(null); viewModel.selectTextOverlay(null) },
-                        onAddImageAtSlot = { slotIndex, path -> viewModel.addElementAtSlot(slotIndex, path) },
-                        onTemplateSelected = { viewModel.applyTemplate(it) },
-                        onElementCropChanged = { id, ox, oy, s -> viewModel.updateElementCrop(id, ox, oy, s) },
-                        onTextOverlayClick = { viewModel.selectTextOverlay(it) },
-                        onTextOverlayPositionChanged = { id, x, y -> viewModel.updateTextOverlayPosition(id, x, y) },
-                        onTextOverlayWidthChanged = { id, w -> viewModel.updateTextOverlayWidth(id, w) },
-                        onTextOverlayTextChanged = { id, t -> viewModel.updateTextOverlayText(id, t) },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-
-                // Hide neighbor previews when span is active (they'd overlap the wide canvas)
-                if (!isSpanActive) {
-                    // Previous slide visual
-                    if (prevSlide != null) {
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .graphicsLayer { translationX = -shiftPx }
-                                .alpha(0.3f),
-                        ) {
-                            SlidePreview(slide = prevSlide, aspectRatio = aspectRatio)
-                        }
-                    }
-
-                    // Next slide visual
-                    if (nextSlide != null) {
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .graphicsLayer { translationX = shiftPx }
-                                .alpha(0.3f),
-                        ) {
-                            SlidePreview(slide = nextSlide, aspectRatio = aspectRatio)
-                        }
-                    }
-                }
-
-                // Left edge click area
-                if (prevSlide != null) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .fillMaxHeight()
-                            .width(edgeWidth.coerceAtLeast(40.dp))
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { viewModel.selectPreviousSlide() },
-                    )
-                }
-
-                // Right edge click area (nav or add)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .width(edgeWidth.coerceAtLeast(40.dp))
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) {
-                            if (nextSlide != null) viewModel.selectNextSlide()
-                            else viewModel.addSlide()
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    if (nextSlide == null) {
-                        Icon(
-                            TablerIcons.Plus,
-                            contentDescription = "Add slide",
-                            modifier = Modifier.size(32.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        )
-                    }
-                }
+                EditorSidebar(
+                    slide = currentSlide,
+                    slideIndex = state.currentSlideIndex.coerceAtLeast(0),
+                    canDeleteSlide = slides.size > 1 && currentSlide != null,
+                    selectedElement = selectedElement,
+                    selectedTextOverlay = selectedTextOverlay,
+                    onTemplateSelected = viewModel::applyTemplate,
+                    onBackgroundColor = { argb -> viewModel.updateSlideStyle(backgroundColorArgb = argb) },
+                    onGapChanged = viewModel::updateSlideGap,
+                    onFitMode = { mode -> viewModel.updateSlideStyle(fitMode = mode) },
+                    onBorderChanged = { border -> viewModel.updateSlideStyle(frameBorderPx = border) },
+                    onAddText = viewModel::addTextOverlay,
+                    onTextStyle = { fontFamily, size, color, alignment ->
+                        val id = selectedTextOverlay?.id ?: return@EditorSidebar
+                        viewModel.updateTextOverlayStyle(id, fontFamily, size, color, alignment)
+                    },
+                    onTextDelete = {
+                        selectedTextOverlay?.id?.let { viewModel.removeTextOverlay(it) }
+                    },
+                    onDeleteSlide = {
+                        currentSlide?.id?.let { viewModel.removeSlide(it) }
+                    },
+                    onExport = { scale ->
+                        exportScale = scale
+                        dirLauncher.launch()
+                    },
+                )
             }
 
             Filmstrip(
                 slides = slides,
                 selectedSlideId = state.selectedSlideId ?: slides.firstOrNull()?.id,
                 selectedSpanGroupId = currentSlide?.spanGroupId,
-                aspectRatio = aspectRatio,
+                aspectRatio = project.aspectRatio,
                 onSlideSelect = viewModel::selectSlide,
                 onAddSlide = viewModel::addSlide,
                 onRemoveSlide = viewModel::removeSlide,
@@ -245,167 +175,6 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             )
         }
 
-        // Back button + project name top-left
-        if (onBack != null) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 36.dp),
-            ) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
-                ) {
-                    Icon(
-                        TablerIcons.ChevronLeft,
-                        contentDescription = "Back to slides",
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                BasicTextField(
-                    value = state.project.name,
-                    onValueChange = { viewModel.updateProjectName(it) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.titleSmall.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    modifier = Modifier.width(200.dp),
-                )
-            }
-        }
-
-        if (showTemplatePicker) {
-            TemplatePickerBar(
-                onTemplateSelected = { viewModel.applyTemplate(it) },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 38.dp),
-            )
-        } else if (state.selectedTextOverlayId != null) {
-            val selectedOverlay = currentSlide?.textOverlays?.find { it.id == state.selectedTextOverlayId }
-            if (selectedOverlay != null) {
-                TextOverlayControls(
-                    overlay = selectedOverlay,
-                    onStyleChanged = { fontFamily, fontSize, color, alignment ->
-                        viewModel.updateTextOverlayStyle(
-                            id = selectedOverlay.id,
-                            fontFamily = fontFamily,
-                            fontSizePx = fontSize,
-                            colorArgb = color,
-                            alignment = alignment,
-                        )
-                    },
-                    onDelete = { viewModel.removeTextOverlay(selectedOverlay.id) },
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 38.dp),
-                )
-            }
-        } else if (showControls) {
-            SlideControls(
-                slide = currentSlide,
-                representativeElement = representativeElement ?: MediaElement(sourcePath = "", bounds = ElementBounds()),
-                onFitModeChanged = { mode ->
-                    viewModel.updateSlideStyle(fitMode = mode)
-                },
-                onFrameBorderPxChanged = { borderPx ->
-                    viewModel.updateSlideStyle(frameBorderPx = borderPx)
-                },
-                onBackgroundColorChanged = { color ->
-                    viewModel.updateSlideStyle(backgroundColorArgb = color)
-                },
-                onGapChanged = { gapPx ->
-                    viewModel.updateSlideGap(gapPx)
-                },
-                onTemplateSelected = { viewModel.applyTemplate(it) },
-                onAddText = { viewModel.addTextOverlay() },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 38.dp),
-            )
-        }
-
-        // Export buttons top-right
-        run {
-            var exportScale by remember { mutableStateOf(1) }
-            val dirLauncher = rememberDirectoryPickerLauncher { dir ->
-                dir?.path?.let { viewModel.exportAllSlides(it, exportScale) }
-            }
-            val controlHeight = 28.dp
-
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(end = 8.dp, top = 38.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .height(controlHeight)
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                        .clip(RoundedCornerShape(6.dp)),
-                ) {
-                    AspectRatio.entries.forEachIndexed { index, ratio ->
-                        val selected = state.project.aspectRatio == ratio
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .pointerHoverIcon(PointerIcon.Hand)
-                                .then(if (selected) Modifier.background(Color.White) else Modifier)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                ) { viewModel.setAspectRatio(ratio) }
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                ratio.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (selected) Color.Black else MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                        if (index < AspectRatio.entries.lastIndex) {
-                            Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
-                        }
-                    }
-                }
-                Text("Export:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(
-                modifier = Modifier
-                    .height(controlHeight)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                    .clip(RoundedCornerShape(6.dp)),
-            ) {
-                listOf(1, 2).forEachIndexed { index, scale ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) {
-                                exportScale = scale
-                                dirLauncher.launch()
-                            }
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(TablerIcons.Download, contentDescription = null, modifier = Modifier.size(12.dp))
-                            Text("${scale}x", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    if (index == 0) {
-                        Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
-                    }
-                }
-            }
-            }
-        }
-
-        // Export progress overlay
         val progress = state.exportProgress
         if (progress != null) {
             Box(
@@ -417,7 +186,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 Column(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surface)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
                         .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
@@ -437,6 +206,188 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
             }
         }
     }
+}
+
+@Composable
+private fun SlidesRowCanvas(
+    slides: List<Slide>,
+    aspectRatio: AspectRatio,
+    selectedSlideId: String?,
+    selectedElementId: String?,
+    selectedTextOverlayId: String?,
+    spanGroup: List<Slide>?,
+    onSelectSlide: (String) -> Unit,
+    onSelectElement: (String?) -> Unit,
+    onCanvasClick: () -> Unit,
+    onAddImageAtSlot: (Int, String) -> Unit,
+    onTemplateSelected: (com.yannickpulver.slides.model.SlideTemplate) -> Unit,
+    onElementCropChanged: (String, Float, Float, Float) -> Unit,
+    onTextOverlayClick: (String) -> Unit,
+    onTextOverlayPositionChanged: (String, Float, Float) -> Unit,
+    onTextOverlayWidthChanged: (String, Float) -> Unit,
+    onTextOverlayTextChanged: (String, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val groups = remember(slides) { groupSlides(slides) }
+    val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
+
+    BoxWithConstraints(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerLowest),
+    ) {
+        val canvasW = maxWidth
+        val canvasH = maxHeight
+        val padding = 40.dp
+        val gap = 20.dp
+        val density = LocalDensity.current
+        val slideHeight = (canvasH - padding * 2).coerceAtLeast(160.dp)
+        val slideWidth = slideHeight * ratio
+        val viewportPx = with(density) { canvasW.toPx() }
+        val gapPxF = with(density) { gap.toPx() }
+        val paddingPxF = with(density) { padding.toPx() }
+        val slideWidthPx = with(density) { slideWidth.toPx() }
+
+        val scrollState = rememberScrollState()
+        val selectedGroupIdx = groups.indexOfFirst { g -> g.any { it.id == selectedSlideId } }
+
+        LaunchedEffect(selectedGroupIdx, viewportPx, slides.size) {
+            if (selectedGroupIdx < 0) return@LaunchedEffect
+            var offset = paddingPxF
+            for (i in 0 until selectedGroupIdx) {
+                offset += slideWidthPx * groups[i].size + gapPxF
+            }
+            val selectedWidthPx = slideWidthPx * groups[selectedGroupIdx].size
+            val selectedCenter = offset + selectedWidthPx / 2f
+            val target = (selectedCenter - viewportPx / 2f).coerceAtLeast(0f).toInt()
+            scrollState.animateScrollTo(target)
+        }
+
+        Row(
+            modifier = Modifier
+                .horizontalScroll(scrollState)
+                .fillMaxHeight()
+                .widthIn(min = canvasW)
+                .padding(horizontal = padding, vertical = padding),
+            horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            groups.forEach { group ->
+                val groupSelected = group.any { it.id == selectedSlideId }
+                val isSpanSelected = groupSelected && group.size > 1 && spanGroup != null
+
+                Box(
+                    modifier = Modifier
+                        .width(slideWidth * group.size)
+                        .height(slideHeight)
+                        .shadow(
+                            elevation = if (groupSelected) 16.dp else 8.dp,
+                            shape = RoundedCornerShape(2.dp),
+                        )
+                        .background(Color.Transparent),
+                ) {
+                    if (isSpanSelected && spanGroup != null) {
+                        SpanCanvasPreview(
+                            slides = spanGroup,
+                            aspectRatio = aspectRatio,
+                            onElementCropChanged = onElementCropChanged,
+                            onAddImageAtSlot = onAddImageAtSlot,
+                            onTemplateSelected = onTemplateSelected,
+                            modifier = Modifier.fillMaxSize(),
+                            fillFraction = 1f,
+                        )
+                    } else {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            group.forEach { slide ->
+                                val slideSelected = slide.id == selectedSlideId
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .then(
+                                            if (!slideSelected) Modifier
+                                                .pointerHoverIcon(PointerIcon.Hand)
+                                                .clickable(
+                                                    interactionSource = remember(slide.id) { MutableInteractionSource() },
+                                                    indication = null,
+                                                ) { onSelectSlide(slide.id) }
+                                            else Modifier,
+                                        ),
+                                ) {
+                                    if (slideSelected) {
+                                        SlideCanvas(
+                                            slide = slide,
+                                            aspectRatio = aspectRatio,
+                                            selectedElementId = selectedElementId,
+                                            selectedTextOverlayId = selectedTextOverlayId,
+                                            currentTemplate = slide.template,
+                                            onElementClick = onSelectElement,
+                                            onCanvasClick = onCanvasClick,
+                                            onAddImageAtSlot = onAddImageAtSlot,
+                                            onTemplateSelected = onTemplateSelected,
+                                            onElementCropChanged = onElementCropChanged,
+                                            onTextOverlayClick = onTextOverlayClick,
+                                            onTextOverlayPositionChanged = onTextOverlayPositionChanged,
+                                            onTextOverlayWidthChanged = onTextOverlayWidthChanged,
+                                            onTextOverlayTextChanged = onTextOverlayTextChanged,
+                                            modifier = Modifier.fillMaxSize(),
+                                            fillFraction = 1f,
+                                        )
+                                    } else {
+                                        SlidePreview(
+                                            slide = slide,
+                                            aspectRatio = aspectRatio,
+                                            fillFraction = 1f,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (groupSelected) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(1.5.dp, MaterialTheme.colorScheme.primary),
+                        )
+                    }
+
+                    if (group.size > 1) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(10.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                "PAN · ${group.size} PANELS",
+                                fontSize = 9.sp,
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun groupSlides(slides: List<Slide>): List<List<Slide>> {
+    val out = mutableListOf<MutableList<Slide>>()
+    var cur: MutableList<Slide>? = null
+    for (s in slides) {
+        val gid = s.spanGroupId
+        val last = cur
+        if (gid != null && last != null && last.first().spanGroupId == gid) {
+            last.add(s)
+        } else {
+            val fresh = mutableListOf(s)
+            cur = fresh
+            out.add(fresh)
+        }
+    }
+    return out
 }
 
 expect fun exportSlideAsImage(

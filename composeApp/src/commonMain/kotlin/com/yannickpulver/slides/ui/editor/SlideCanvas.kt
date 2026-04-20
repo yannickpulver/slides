@@ -84,6 +84,7 @@ import com.yannickpulver.slides.template.boundsForTemplate
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Photo
 import compose.icons.tablericons.PlayerPlay
+import compose.icons.tablericons.Refresh
 import io.github.kdroidfilter.composemediaplayer.VideoPlayerSurface
 import io.github.kdroidfilter.composemediaplayer.rememberVideoPlayerState
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
@@ -110,6 +111,7 @@ fun SlideCanvas(
     onTextOverlayWidthChanged: (String, Float) -> Unit,
     onTextOverlayTextChanged: (String, String) -> Unit,
     modifier: Modifier = Modifier,
+    fillFraction: Float = 0.9f,
 ) {
     if (slide == null) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -146,7 +148,7 @@ fun SlideCanvas(
     ) {
         BoxWithConstraints(
             modifier = Modifier
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(fillFraction)
                 .aspectRatio(ratio)
                 .background(
                     if (slide.gapPx > 0f) slide.backgroundColorArgb.toComposeColor()
@@ -193,6 +195,9 @@ fun SlideCanvas(
                                     onCropChanged = { ox, oy, s ->
                                         onElementCropChanged(element.id, ox, oy, s)
                                     },
+                                    onReplaceImage = { path -> onAddImageAtSlot(slotIndex, path) },
+                                    stackIndex = slotIndex,
+                                    stackCount = slotBounds.size,
                                 )
                             }
                         } else {
@@ -242,6 +247,7 @@ fun SpanCanvasPreview(
     onAddImageAtSlot: (Int, String) -> Unit,
     onTemplateSelected: (SlideTemplate) -> Unit,
     modifier: Modifier = Modifier,
+    fillFraction: Float = 0.9f,
 ) {
     val spanCount = slides.size
     val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
@@ -308,8 +314,8 @@ fun SpanCanvasPreview(
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         BoxWithConstraints(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .fillMaxHeight(0.9f)
+                .fillMaxWidth(fillFraction)
+                .fillMaxHeight(fillFraction)
                 .aspectRatio(ratio * spanCount, matchHeightConstraintsFirst = true)
                 .clipToBounds()
                 .then(
@@ -365,8 +371,8 @@ fun SpanCanvasPreview(
                             BorderMaskOverlay(
                                 insetPx = frameInsetPx,
                                 color = el.backgroundColorArgb.toComposeColor(),
-                                spanIndex = i,
-                                spanCount = spanCount,
+                                drawLeft = i == 0,
+                                drawRight = i == spanCount - 1,
                             )
                         }
                     }
@@ -390,6 +396,29 @@ fun SpanCanvasPreview(
                 }
             }
 
+            if (element != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { filePicker.launch() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        TablerIcons.Refresh,
+                        contentDescription = "Change image",
+                        tint = Color.White,
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -480,6 +509,9 @@ private fun FilledSlot(
     isSelected: Boolean,
     onClick: () -> Unit,
     onCropChanged: (Float, Float, Float) -> Unit,
+    onReplaceImage: (String) -> Unit,
+    stackIndex: Int = 0,
+    stackCount: Int = 1,
 ) {
     // Offsets stored normalized (fraction of slot size), work in pixels internally
     var ox by remember(element.id) { mutableStateOf(0f) }
@@ -542,15 +574,12 @@ private fun FilledSlot(
         onCropChanged(ox / sw, oy / sh, scale)
     }
 
-    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(element.backgroundColorArgb.toComposeColor())
             .clipToBounds()
             .onSizeChanged { slotSize = it }
-            .border(if (isSelected) 2.dp else 0.dp, borderColor)
             .pointerInput(element.id) {
                 detectTapGestures {
                     onClick()
@@ -573,6 +602,8 @@ private fun FilledSlot(
                 }
             ),
     ) {
+        val drawTop = stackIndex == 0
+        val drawBottom = stackIndex == stackCount - 1
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             if (element.type == MediaType.VIDEO) {
                 VideoSlotContent(
@@ -581,6 +612,8 @@ private fun FilledSlot(
                     slotSize = slotSize,
                     logicalSlotWidth = logicalSlotWidth,
                     logicalSlotHeight = logicalSlotHeight,
+                    drawTop = drawTop,
+                    drawBottom = drawBottom,
                     onImageSizeKnown = { w, h ->
                         imgSize = IntSize(w, h)
                         clamp()
@@ -594,6 +627,8 @@ private fun FilledSlot(
                     slotSize = slotSize,
                     logicalSlotWidth = logicalSlotWidth,
                     logicalSlotHeight = logicalSlotHeight,
+                    drawTop = drawTop,
+                    drawBottom = drawBottom,
                     onImageSizeKnown = { w, h ->
                         imgSize = IntSize(w, h)
                         clamp()
@@ -612,7 +647,34 @@ private fun FilledSlot(
         BorderMaskOverlay(
             insetPx = frameInsetPx,
             color = element.backgroundColorArgb.toComposeColor(),
+            drawTop = stackIndex == 0,
+            drawBottom = stackIndex == stackCount - 1,
         )
+
+        val replacePicker = rememberFilePickerLauncher(type = FileKitType.Image) { file ->
+            file?.path?.let { onReplaceImage(it) }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp)
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.55f))
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { replacePicker.launch() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                TablerIcons.Refresh,
+                contentDescription = "Change image",
+                tint = Color.White,
+                modifier = Modifier.size(13.dp),
+            )
+        }
 
         // Corner resize handles at image corners
         if (isSelected && cropEnabled && slotSize.width > 0 && imgSize.width > 0) {
@@ -640,49 +702,43 @@ private fun FilledSlot(
 private fun BorderMaskOverlay(
     insetPx: Float,
     color: Color,
-    spanIndex: Int = 0,
-    spanCount: Int = 1,
+    drawTop: Boolean = true,
+    drawBottom: Boolean = true,
+    drawLeft: Boolean = true,
+    drawRight: Boolean = true,
 ) {
     if (insetPx <= 0f) return
     val density = LocalDensity.current
     val insetDp = with(density) { insetPx.toDp() }
     Box(modifier = Modifier.fillMaxSize()) {
-        // Top — always
-        Box(
+        if (drawTop) Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .height(insetDp)
                 .background(color),
         )
-        // Bottom — always
-        Box(
+        if (drawBottom) Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(insetDp)
                 .background(color),
         )
-        // Left — only first slide in span (or non-span)
-        if (spanIndex == 0) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-                    .width(insetDp)
-                    .background(color),
-            )
-        }
-        // Right — only last slide in span (or non-span)
-        if (spanIndex == spanCount - 1) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(insetDp)
-                    .background(color),
-            )
-        }
+        if (drawLeft) Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .width(insetDp)
+                .background(color),
+        )
+        if (drawRight) Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(insetDp)
+                .background(color),
+        )
     }
 }
 
@@ -794,6 +850,10 @@ private fun ImageSlotContent(
     logicalSlotWidth: Float,
     logicalSlotHeight: Float,
     onImageSizeKnown: (Int, Int) -> Unit,
+    drawTop: Boolean = true,
+    drawBottom: Boolean = true,
+    drawLeft: Boolean = true,
+    drawRight: Boolean = true,
 ) {
     var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
     var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
@@ -830,6 +890,10 @@ private fun ImageSlotContent(
                 frameBorderPx = element.frameBorderPx,
                 logicalSlotWidth = logicalSlotWidth,
                 logicalSlotHeight = logicalSlotHeight,
+                drawTop = drawTop,
+                drawBottom = drawBottom,
+                drawLeft = drawLeft,
+                drawRight = drawRight,
             )
             val drawWDp = with(density) { frame.drawWidth.toDp() }
             val drawHDp = with(density) { frame.drawHeight.toDp() }
@@ -864,6 +928,10 @@ private fun VideoSlotContent(
     logicalSlotHeight: Float,
     onImageSizeKnown: (Int, Int) -> Unit,
     onToggleReady: ((() -> Unit)) -> Unit,
+    drawTop: Boolean = true,
+    drawBottom: Boolean = true,
+    drawLeft: Boolean = true,
+    drawRight: Boolean = true,
 ) {
     var playerActive by remember { mutableStateOf(false) }
 
@@ -983,6 +1051,10 @@ private fun VideoSlotContent(
                 frameBorderPx = element.frameBorderPx,
                 logicalSlotWidth = logicalSlotWidth,
                 logicalSlotHeight = logicalSlotHeight,
+                drawTop = drawTop,
+                drawBottom = drawBottom,
+                drawLeft = drawLeft,
+                drawRight = drawRight,
             )
             val drawWDp = with(density) { frame.drawWidth.toDp() }
             val drawHDp = with(density) { frame.drawHeight.toDp() }
@@ -1623,6 +1695,10 @@ private fun computeMediaFrame(
     frameBorderPx: Float,
     logicalSlotWidth: Float,
     logicalSlotHeight: Float,
+    drawTop: Boolean = true,
+    drawBottom: Boolean = true,
+    drawLeft: Boolean = true,
+    drawRight: Boolean = true,
 ): MediaFrame {
     val safeMediaWidth = mediaWidth.coerceAtLeast(1f)
     val safeMediaHeight = mediaHeight.coerceAtLeast(1f)
@@ -1635,24 +1711,30 @@ private fun computeMediaFrame(
         logicalSlotHeight = logicalSlotHeight,
         frameBorderPx = frameBorderPx,
     )
-    val availableWidth = (safeSlotWidth - inset * 2f).coerceAtLeast(1f)
-    val availableHeight = (safeSlotHeight - inset * 2f).coerceAtLeast(1f)
+    val tI = if (drawTop) 1f else 0f
+    val bI = if (drawBottom) 1f else 0f
+    val lI = if (drawLeft) 1f else 0f
+    val rI = if (drawRight) 1f else 0f
+    val availableWidth = (safeSlotWidth - inset * (lI + rI)).coerceAtLeast(1f)
+    val availableHeight = (safeSlotHeight - inset * (tI + bI)).coerceAtLeast(1f)
+    val centerShiftX = (lI - rI) * inset / 2f
+    val centerShiftY = (tI - bI) * inset / 2f
 
     return if (fitMode == MediaFitMode.FIT) {
         val fitScale = minOf(availableWidth / safeMediaWidth, availableHeight / safeMediaHeight)
         MediaFrame(
             drawWidth = safeMediaWidth * fitScale,
             drawHeight = safeMediaHeight * fitScale,
-            shiftX = 0f,
-            shiftY = 0f,
+            shiftX = centerShiftX,
+            shiftY = centerShiftY,
         )
     } else {
         val fillScale = max(availableWidth / safeMediaWidth, availableHeight / safeMediaHeight)
         MediaFrame(
             drawWidth = safeMediaWidth * fillScale * cropScale,
             drawHeight = safeMediaHeight * fillScale * cropScale,
-            shiftX = cropOffsetX,
-            shiftY = cropOffsetY,
+            shiftX = cropOffsetX + centerShiftX,
+            shiftY = cropOffsetY + centerShiftY,
         )
     }
 }
@@ -1884,7 +1966,7 @@ fun SlidePreview(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = if (slide.gapPx > 0f) Arrangement.spacedBy(gapDp) else Arrangement.Top,
             ) {
-                slotBounds.forEachIndexed { _, bounds ->
+                slotBounds.forEachIndexed { slotIdx, bounds ->
                     val element = slide.elements.find { it.bounds == bounds }
                     Box(
                         modifier = Modifier.fillMaxWidth().weight(bounds.height).clipToBounds(),
@@ -1897,6 +1979,8 @@ fun SlidePreview(
                                 logicalSlotHeight = aspectRatio.height * bounds.height,
                                 spanIndex = slide.spanIndex,
                                 spanCount = slide.spanCount,
+                                stackIndex = slotIdx,
+                                stackCount = slotBounds.size,
                             )
                         } else {
                             Box(
@@ -1925,6 +2009,8 @@ private fun PreviewSlotContent(
     logicalSlotHeight: Float,
     spanIndex: Int = 0,
     spanCount: Int = 1,
+    stackIndex: Int = 0,
+    stackCount: Int = 1,
 ) {
     var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
     var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
@@ -1962,6 +2048,10 @@ private fun PreviewSlotContent(
             frameBorderPx = element.frameBorderPx,
             logicalSlotWidth = effectiveLogicalWidth,
             logicalSlotHeight = logicalSlotHeight,
+            drawTop = stackIndex == 0,
+            drawBottom = stackIndex == stackCount - 1,
+            drawLeft = spanIndex == 0,
+            drawRight = spanIndex == spanCount - 1,
         )
         val sliceShiftX = frame.shiftX + (effectiveSlotWidth - sw) / 2f - (spanIndex * sw)
         val drawWDp = with(density) { frame.drawWidth.toDp() }
@@ -1991,8 +2081,10 @@ private fun PreviewSlotContent(
                     frameBorderPx = element.frameBorderPx,
                 ),
                 color = element.backgroundColorArgb.toComposeColor(),
-                spanIndex = spanIndex,
-                spanCount = spanCount,
+                drawTop = stackIndex == 0,
+                drawBottom = stackIndex == stackCount - 1,
+                drawLeft = spanIndex == 0,
+                drawRight = spanIndex == spanCount - 1,
             )
         }
     } else {
