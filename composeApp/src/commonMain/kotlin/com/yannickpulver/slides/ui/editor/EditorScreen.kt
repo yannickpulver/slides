@@ -343,14 +343,6 @@ private fun SlidesRowCanvas(
                         }
                     }
 
-                    if (groupSelected) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .border(1.5.dp, MaterialTheme.colorScheme.primary),
-                        )
-                    }
-
                     if (group.size > 1) {
                         Box(
                             modifier = Modifier

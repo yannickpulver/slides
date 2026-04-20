@@ -159,7 +159,9 @@ fun SlideCanvas(
                     indication = null,
                 ) { onCanvasClick() },
         ) {
-            val gapDp = slide.gapPx.dp
+            val density = LocalDensity.current
+            val displayScale = constraints.maxWidth.toFloat() / aspectRatio.width.toFloat()
+            val gapDp = with(density) { (slide.gapPx * displayScale).toDp() }
             Column(
                 modifier = Modifier.fillMaxSize().clipToBounds(),
                 verticalArrangement = if (slide.gapPx > 0f) Arrangement.spacedBy(gapDp) else Arrangement.Top,
@@ -1961,7 +1963,9 @@ fun SlidePreview(
                 )
                 .clipToBounds(),
         ) {
-            val gapDp = slide.gapPx.dp
+            val density = LocalDensity.current
+            val displayScale = constraints.maxWidth.toFloat() / aspectRatio.width.toFloat()
+            val gapDp = with(density) { (slide.gapPx * displayScale).toDp() }
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = if (slide.gapPx > 0f) Arrangement.spacedBy(gapDp) else Arrangement.Top,

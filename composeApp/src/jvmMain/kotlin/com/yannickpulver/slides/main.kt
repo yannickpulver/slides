@@ -16,6 +16,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.yannickpulver.slides.data.ProjectStore
 import com.yannickpulver.slides.model.Project
 import com.yannickpulver.slides.model.ProjectEntry
+import com.yannickpulver.slides.model.ProjectMeta
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.ui.editor.EditorViewModel
 import io.github.vinceglb.filekit.FileKit
@@ -33,13 +34,13 @@ fun main() {
         val viewModel = remember { EditorViewModel() }
         var currentScreen by remember { mutableStateOf(Screen.ProjectPicker) }
         var projects by remember { mutableStateOf(projectStore.listProjects()) }
-        var firstSlides by remember {
-            mutableStateOf(projects.associate { it.id to projectStore.loadFirstSlide(it.filePath) })
+        var projectMetas by remember {
+            mutableStateOf(projects.associate { it.id to projectStore.loadProjectMeta(it.filePath) })
         }
 
         fun refreshProjects() {
             projects = projectStore.listProjects()
-            firstSlides = projects.associate { it.id to projectStore.loadFirstSlide(it.filePath) }
+            projectMetas = projects.associate { it.id to projectStore.loadProjectMeta(it.filePath) }
         }
 
         fun openProject(entry: ProjectEntry) {
@@ -140,7 +141,7 @@ fun main() {
             App(
                 viewModel = viewModel,
                 projects = projects,
-                firstSlides = firstSlides,
+                projectMetas = projectMetas,
                 onCreateProject = {
                     val (entry, project) = projectStore.createProject()
                     viewModel.loadProject(project, entry.filePath)

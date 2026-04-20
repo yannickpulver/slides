@@ -420,7 +420,11 @@ class EditorViewModel : ViewModel() {
     fun applyTemplate(template: SlideTemplate) {
         pushUndo()
         _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
+            val currentSel = state.currentSlide ?: return@update state
+            // Operate on the first slide of the span group when current is a tail panel
+            val slide = currentSel.spanGroupId?.let { gid ->
+                state.project.slides.firstOrNull { it.spanGroupId == gid && it.spanIndex == 0 }
+            } ?: currentSel
             val spanSize = template.spanSize()
 
             // Tear down existing span group if switching away

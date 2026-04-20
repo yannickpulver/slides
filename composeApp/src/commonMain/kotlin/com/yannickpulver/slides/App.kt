@@ -12,7 +12,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import com.yannickpulver.slides.model.ProjectEntry
-import com.yannickpulver.slides.model.Slide
+import com.yannickpulver.slides.model.ProjectMeta
 import com.yannickpulver.slides.ui.editor.EditorScreen
 import com.yannickpulver.slides.ui.editor.EditorViewModel
 import com.yannickpulver.slides.ui.projects.ProjectPickerScreen
@@ -48,7 +48,7 @@ enum class Screen { ProjectPicker, Editor }
 fun App(
     viewModel: EditorViewModel,
     projects: List<ProjectEntry>,
-    firstSlides: Map<String, Slide?>,
+    projectMetas: Map<String, ProjectMeta?>,
     onCreateProject: () -> Unit,
     onOpenProject: (ProjectEntry) -> Unit,
     onDeleteProject: (ProjectEntry) -> Unit,
@@ -60,7 +60,7 @@ fun App(
             when (currentScreen) {
                 Screen.ProjectPicker -> ProjectPickerScreen(
                     projects = projects,
-                    firstSlides = firstSlides,
+                    projectMetas = projectMetas,
                     onCreateProject = onCreateProject,
                     onOpenProject = onOpenProject,
                     onDeleteProject = onDeleteProject,

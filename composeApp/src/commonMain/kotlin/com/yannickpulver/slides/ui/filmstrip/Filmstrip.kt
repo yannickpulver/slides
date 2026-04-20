@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -99,33 +101,27 @@ fun Filmstrip(
         ) {
             groups.forEach { group ->
                 val isSpan = group.size > 1
-                val groupSelected = group.any { it.id == selectedSlideId || it.spanGroupId == selectedSpanGroupId }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(7.dp))
-                        .then(
-                            if (groupSelected && isSpan) Modifier
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(7.dp))
-                                .padding(3.dp)
-                            else Modifier,
-                        ),
-                ) {
-                    group.forEach { slide ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val groupSelectId = group.first().id
+                    val groupSelected = group.any { it.id == selectedSlideId }
+                    group.forEachIndexed { indexInGroup, slide ->
                         val isDragging = slide.id in dragGroupIds
                         val isFirstInDragGroup = isDragging && (slide.spanGroupId == null || slide.spanIndex == 0)
                         val dragGroupGapReduce = if (isDragging && !isFirstInDragGroup) 6.dp else 0.dp
+                        val isFirstInGroup = indexInGroup == 0
+                        val isLastInGroup = indexInGroup == group.lastIndex
 
                         Thumb(
                             slide = slide,
                             ratio = ratio,
                             thumbWidth = thumbWidth,
                             thumbHeight = thumbHeight,
-                            selected = slide.id == selectedSlideId,
+                            selected = if (isSpan) groupSelected && isFirstInGroup else slide.id == selectedSlideId,
                             inGroup = isSpan,
+                            isFirstInGroup = isFirstInGroup,
+                            isLastInGroup = isLastInGroup,
                             showRemove = group.size == 1 && slide.id == selectedSlideId && slides.size > 1,
-                            onClick = { onSlideSelect(slide.id) },
+                            onClick = { onSlideSelect(if (isSpan) groupSelectId else slide.id) },
                             onRemove = { onRemoveSlide(slide.id) },
                             modifier = Modifier
                                 .zIndex(if (isDragging) 1f else 0f)
@@ -223,6 +219,8 @@ private fun Thumb(
     thumbHeight: androidx.compose.ui.unit.Dp,
     selected: Boolean,
     inGroup: Boolean,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
     showRemove: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
@@ -233,17 +231,18 @@ private fun Thumb(
             modifier = Modifier
                 .width(thumbWidth)
                 .height(thumbHeight)
-                .zIndex(if (selected) 2f else 1f)
-                .clip(RoundedCornerShape(if (inGroup) 0.dp else 3.dp))
+                .clip(
+                    if (inGroup) RoundedCornerShape(
+                        topStart = if (isFirstInGroup) 3.dp else 0.dp,
+                        bottomStart = if (isFirstInGroup) 3.dp else 0.dp,
+                        topEnd = if (isLastInGroup) 3.dp else 0.dp,
+                        bottomEnd = if (isLastInGroup) 3.dp else 0.dp,
+                    ) else RoundedCornerShape(3.dp)
+                )
                 .clipToBounds()
                 .background(
                     if (slide.elements.isNotEmpty()) Color.White
                     else MaterialTheme.colorScheme.surfaceContainer,
-                )
-                .then(
-                    if (selected && inGroup) Modifier.border(1.dp, MaterialTheme.colorScheme.primary)
-                    else if (selected) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(3.dp))
-                    else Modifier,
                 )
                 .pointerHoverIcon(PointerIcon.Hand)
                 .clickable { onClick() },
@@ -259,6 +258,17 @@ private fun Thumb(
                     )
                 }
             }
+        }
+
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-10).dp)
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurface),
+            )
         }
 
         if (showRemove) {

@@ -2,6 +2,7 @@ package com.yannickpulver.slides.data
 
 import com.yannickpulver.slides.model.Project
 import com.yannickpulver.slides.model.ProjectEntry
+import com.yannickpulver.slides.model.ProjectMeta
 import com.yannickpulver.slides.model.Slide
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -73,6 +74,20 @@ class ProjectStore {
     fun loadFirstSlide(filePath: String): Slide? {
         return try {
             loadProject(filePath).slides.firstOrNull()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun loadProjectMeta(filePath: String): ProjectMeta? {
+        return try {
+            val p = loadProject(filePath)
+            ProjectMeta(
+                firstSlide = p.slides.firstOrNull(),
+                aspectRatio = p.aspectRatio,
+                slideCount = p.slides.size,
+                hasPanorama = p.slides.any { it.spanGroupId != null },
+            )
         } catch (e: Exception) {
             null
         }
