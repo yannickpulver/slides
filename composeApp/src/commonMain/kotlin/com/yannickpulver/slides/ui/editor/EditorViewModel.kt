@@ -587,31 +587,48 @@ class EditorViewModel : ViewModel() {
 
     fun updateTextOverlayPosition(id: String, x: Float, y: Float) {
         _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
-            val updatedSlide = slide.copy(
-                textOverlays = slide.textOverlays.map {
-                    if (it.id == id) it.copy(x = x, y = y) else it
-                }
-            )
             state.copy(
                 project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
+                    slides = state.project.slides.map { s ->
+                        if (s.textOverlays.none { it.id == id }) s
+                        else s.copy(textOverlays = s.textOverlays.map {
+                            if (it.id == id) it.copy(x = x, y = y) else it
+                        })
+                    }
                 ),
             )
         }
     }
 
+    fun moveTextOverlay(id: String, toSlideId: String, x: Float, y: Float) {
+        _state.update { state ->
+            var found: TextOverlay? = null
+            val cleared = state.project.slides.map { s ->
+                val hit = s.textOverlays.find { it.id == id }
+                if (hit != null) {
+                    found = hit
+                    s.copy(textOverlays = s.textOverlays.filter { it.id != id })
+                } else s
+            }
+            val overlay = found ?: return@update state
+            val moved = overlay.copy(x = x, y = y)
+            val final = cleared.map { s ->
+                if (s.id == toSlideId) s.copy(textOverlays = s.textOverlays + moved) else s
+            }
+            state.copy(project = state.project.copy(slides = final))
+        }
+    }
+
     fun updateTextOverlayWidth(id: String, width: Float) {
         _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
-            val updatedSlide = slide.copy(
-                textOverlays = slide.textOverlays.map {
-                    if (it.id == id) it.copy(width = width.coerceIn(0.05f, 1f)) else it
-                }
-            )
             state.copy(
                 project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
+                    slides = state.project.slides.map { s ->
+                        if (s.textOverlays.none { it.id == id }) s
+                        else s.copy(textOverlays = s.textOverlays.map {
+                            if (it.id == id) it.copy(width = width.coerceIn(0.05f, 1f)) else it
+                        })
+                    }
                 ),
             )
         }
@@ -619,15 +636,14 @@ class EditorViewModel : ViewModel() {
 
     fun updateTextOverlayText(id: String, text: String) {
         _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
-            val updatedSlide = slide.copy(
-                textOverlays = slide.textOverlays.map {
-                    if (it.id == id) it.copy(text = text) else it
-                }
-            )
             state.copy(
                 project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
+                    slides = state.project.slides.map { s ->
+                        if (s.textOverlays.none { it.id == id }) s
+                        else s.copy(textOverlays = s.textOverlays.map {
+                            if (it.id == id) it.copy(text = text) else it
+                        })
+                    }
                 ),
             )
         }
@@ -642,20 +658,19 @@ class EditorViewModel : ViewModel() {
     ) {
         pushUndo()
         _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
-            val updatedSlide = slide.copy(
-                textOverlays = slide.textOverlays.map {
-                    if (it.id == id) it.copy(
-                        fontFamily = fontFamily ?: it.fontFamily,
-                        fontSizePx = fontSizePx ?: it.fontSizePx,
-                        colorArgb = colorArgb ?: it.colorArgb,
-                        alignment = alignment ?: it.alignment,
-                    ) else it
-                }
-            )
             state.copy(
                 project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
+                    slides = state.project.slides.map { s ->
+                        if (s.textOverlays.none { it.id == id }) s
+                        else s.copy(textOverlays = s.textOverlays.map {
+                            if (it.id == id) it.copy(
+                                fontFamily = fontFamily ?: it.fontFamily,
+                                fontSizePx = fontSizePx ?: it.fontSizePx,
+                                colorArgb = colorArgb ?: it.colorArgb,
+                                alignment = alignment ?: it.alignment,
+                            ) else it
+                        })
+                    }
                 ),
             )
         }
@@ -664,11 +679,12 @@ class EditorViewModel : ViewModel() {
     fun removeTextOverlay(id: String) {
         pushUndo()
         _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
-            val updatedSlide = slide.copy(textOverlays = slide.textOverlays.filter { it.id != id })
             state.copy(
                 project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
+                    slides = state.project.slides.map { s ->
+                        if (s.textOverlays.none { it.id == id }) s
+                        else s.copy(textOverlays = s.textOverlays.filter { it.id != id })
+                    }
                 ),
                 selectedTextOverlayId = if (state.selectedTextOverlayId == id) null else state.selectedTextOverlayId,
             )

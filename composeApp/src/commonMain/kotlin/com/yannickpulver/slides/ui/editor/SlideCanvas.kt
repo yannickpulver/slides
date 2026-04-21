@@ -245,9 +245,14 @@ fun SlideCanvas(
 fun SpanCanvasPreview(
     slides: List<Slide>,
     aspectRatio: AspectRatio,
+    selectedTextOverlayId: String?,
     onElementCropChanged: (String, Float, Float, Float) -> Unit,
     onAddImageAtSlot: (Int, String) -> Unit,
     onTemplateSelected: (SlideTemplate) -> Unit,
+    onTextOverlayClick: (String) -> Unit,
+    onTextOverlayMove: (String, String, Float, Float) -> Unit,
+    onTextOverlayWidthChanged: (String, Float) -> Unit,
+    onTextOverlayTextChanged: (String, String) -> Unit,
     modifier: Modifier = Modifier,
     fillFraction: Float = 0.9f,
 ) {
@@ -419,6 +424,37 @@ fun SpanCanvasPreview(
                         tint = Color.White,
                         modifier = Modifier.size(13.dp),
                     )
+                }
+            }
+
+            // Text overlays — span-level layer. Overlay.x/width are normalized per slide;
+            // rebase into virtual span coords so user can drag across slices.
+            val virtualWidth = constraints.maxWidth.toFloat()
+            val virtualHeight = constraints.maxHeight.toFloat()
+            val sliceWidthPx = if (spanCount > 0) virtualWidth / spanCount else virtualWidth
+            slides.forEachIndexed { sliceIdx, slide ->
+                slide.textOverlays.forEach { overlay ->
+                    key(overlay.id) {
+                        val virtualX = (sliceIdx + overlay.x) * sliceWidthPx / virtualWidth
+                        val virtualWidthFrac = overlay.width / spanCount
+                        TextOverlayBox(
+                            overlay = overlay.copy(x = virtualX, width = virtualWidthFrac),
+                            canvasWidth = virtualWidth,
+                            canvasHeight = virtualHeight,
+                            isSelected = overlay.id == selectedTextOverlayId,
+                            onClick = { onTextOverlayClick(overlay.id) },
+                            onPositionChanged = { newX, newY ->
+                                val absPx = newX * virtualWidth
+                                val targetIdx = (absPx / sliceWidthPx).toInt().coerceIn(0, spanCount - 1)
+                                val localX = ((absPx - targetIdx * sliceWidthPx) / sliceWidthPx).coerceIn(0f, 1f)
+                                onTextOverlayMove(overlay.id, slides[targetIdx].id, localX, newY)
+                            },
+                            onWidthChanged = { newVirtualFrac ->
+                                onTextOverlayWidthChanged(overlay.id, newVirtualFrac * spanCount)
+                            },
+                            onTextChanged = { t -> onTextOverlayTextChanged(overlay.id, t) },
+                        )
+                    }
                 }
             }
         }

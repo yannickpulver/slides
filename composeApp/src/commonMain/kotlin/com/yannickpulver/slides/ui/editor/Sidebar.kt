@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -456,6 +457,17 @@ private fun TextSection(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
+            Text("Font", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FontPickerField(
+                current = overlay.fontFamily,
+                onSelect = { name -> onStyle(name, null, null, null) },
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             Text("Color", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 listOf(0xFFFFFFFFL, 0xFF000000L, 0xFFE8755FL).forEach { c ->
@@ -685,5 +697,122 @@ private fun PxField(value: String, onChange: (Float) -> Unit) {
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
         )
+    }
+}
+
+@Composable
+private fun FontPickerField(
+    current: String,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
+    var fontNames by remember { mutableStateOf(getAvailableFontFamiliesOrNull()) }
+    androidx.compose.runtime.LaunchedEffect(expanded) {
+        if (expanded && fontNames == null) {
+            while (getAvailableFontFamiliesOrNull() == null) {
+                kotlinx.coroutines.delay(100)
+            }
+            fontNames = getAvailableFontFamiliesOrNull()
+        }
+    }
+
+    Box {
+        Box(
+            modifier = Modifier
+                .defaultMinSize(minWidth = 110.dp)
+                .height(22.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { expanded = true }
+                .padding(horizontal = 6.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                current.ifEmpty { "Default" },
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+            )
+        }
+        androidx.compose.material3.DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false; search = "" },
+            modifier = Modifier.width(240.dp).background(MaterialTheme.colorScheme.surfaceContainer),
+        ) {
+            val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+            BasicTextField(
+                value = search,
+                onValueChange = { search = it },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .focusRequester(searchFocus),
+                decorationBox = { inner ->
+                    Box {
+                        if (search.isEmpty()) {
+                            Text(
+                                "Search fonts…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        inner()
+                    }
+                },
+            )
+            androidx.compose.runtime.LaunchedEffect(expanded) { if (expanded) searchFocus.requestFocus() }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)))
+
+            val names = fontNames
+            if (names == null) {
+                Box(Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            } else {
+                val filtered = if (search.isBlank()) names else names.filter { it.contains(search, ignoreCase = true) }
+                Box(modifier = Modifier.height(280.dp)) {
+                    val scrollState = rememberScrollState()
+                    Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
+                        if (search.isBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(28.dp)
+                                    .clickable { onSelect(""); expanded = false; search = "" }
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Text("Default", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        filtered.forEach { name ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(28.dp)
+                                    .clickable { onSelect(name); expanded = false; search = "" }
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Text(
+                                    name,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontFamily = fontFamilyFromName(name),
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

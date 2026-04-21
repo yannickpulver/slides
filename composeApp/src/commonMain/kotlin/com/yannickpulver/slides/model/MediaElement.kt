@@ -48,5 +48,5 @@ data class TextOverlay(
     val fontFamily: String = "",
     val fontSizePx: Float = 32f,
     val colorArgb: Long = 0xFFFFFFFF,
-    val alignment: TextAlignment = TextAlignment.LEFT,
+    val alignment: TextAlignment = TextAlignment.CENTER,
 )
