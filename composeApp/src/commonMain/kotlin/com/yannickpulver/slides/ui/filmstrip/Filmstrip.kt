@@ -113,6 +113,7 @@ fun Filmstrip(
 
                         Thumb(
                             slide = slide,
+                            aspectRatio = aspectRatio,
                             ratio = ratio,
                             thumbWidth = thumbWidth,
                             thumbHeight = thumbHeight,
@@ -214,6 +215,7 @@ fun Filmstrip(
 @Composable
 private fun Thumb(
     slide: Slide,
+    aspectRatio: AspectRatio,
     ratio: Float,
     thumbWidth: androidx.compose.ui.unit.Dp,
     thumbHeight: androidx.compose.ui.unit.Dp,
@@ -253,7 +255,7 @@ private fun Thumb(
                 if (slide.elements.isNotEmpty()) {
                     SlidePreview(
                         slide = slide,
-                        aspectRatio = AspectRatio.PORTRAIT_4_3,
+                        aspectRatio = aspectRatio,
                         fillFraction = 1f,
                     )
                 }

@@ -66,9 +66,6 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
     val spanGroup = state.currentSpanGroup
     val selectedElement = currentSlide?.elements?.find { it.id == state.selectedElementId }
         ?: currentSlide?.elements?.firstOrNull()
-    val selectedTextOverlay = state.selectedTextOverlayId?.let { id ->
-        slides.firstNotNullOfOrNull { s -> s.textOverlays.find { it.id == id } }
-    }
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     LaunchedEffect(state.selectedSlideId) { focusRequester.requestFocus() }
@@ -117,22 +114,16 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     aspectRatio = project.aspectRatio,
                     selectedSlideId = state.selectedSlideId,
                     selectedElementId = state.selectedElementId,
-                    selectedTextOverlayId = state.selectedTextOverlayId,
                     spanGroup = spanGroup,
                     onSelectSlide = viewModel::selectSlide,
                     onSelectElement = viewModel::selectElement,
                     onCanvasClick = {
-                        viewModel.selectElement(null); viewModel.selectTextOverlay(null)
+                        viewModel.selectElement(null)
                         focusRequester.requestFocus()
                     },
                     onAddImageAtSlot = viewModel::addElementAtSlot,
                     onTemplateSelected = viewModel::applyTemplate,
                     onElementCropChanged = viewModel::updateElementCrop,
-                    onTextOverlayClick = viewModel::selectTextOverlay,
-                    onTextOverlayPositionChanged = viewModel::updateTextOverlayPosition,
-                    onTextOverlayMove = viewModel::moveTextOverlay,
-                    onTextOverlayWidthChanged = viewModel::updateTextOverlayWidth,
-                    onTextOverlayTextChanged = viewModel::updateTextOverlayText,
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
 
@@ -141,20 +132,11 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     slideIndex = state.currentSlideIndex.coerceAtLeast(0),
                     canDeleteSlide = slides.size > 1 && currentSlide != null,
                     selectedElement = selectedElement,
-                    selectedTextOverlay = selectedTextOverlay,
                     onTemplateSelected = viewModel::applyTemplate,
                     onBackgroundColor = { argb -> viewModel.updateSlideStyle(backgroundColorArgb = argb) },
                     onGapChanged = viewModel::updateSlideGap,
                     onFitMode = { mode -> viewModel.updateSlideStyle(fitMode = mode) },
                     onBorderChanged = { border -> viewModel.updateSlideStyle(frameBorderPx = border) },
-                    onAddText = viewModel::addTextOverlay,
-                    onTextStyle = { fontFamily, size, color, alignment ->
-                        val id = selectedTextOverlay?.id ?: return@EditorSidebar
-                        viewModel.updateTextOverlayStyle(id, fontFamily, size, color, alignment)
-                    },
-                    onTextDelete = {
-                        selectedTextOverlay?.id?.let { viewModel.removeTextOverlay(it) }
-                    },
                     onDeleteSlide = {
                         currentSlide?.id?.let { viewModel.removeSlide(it) }
                     },
@@ -217,7 +199,6 @@ private fun SlidesRowCanvas(
     aspectRatio: AspectRatio,
     selectedSlideId: String?,
     selectedElementId: String?,
-    selectedTextOverlayId: String?,
     spanGroup: List<Slide>?,
     onSelectSlide: (String) -> Unit,
     onSelectElement: (String?) -> Unit,
@@ -225,11 +206,6 @@ private fun SlidesRowCanvas(
     onAddImageAtSlot: (Int, String) -> Unit,
     onTemplateSelected: (com.yannickpulver.slides.model.SlideTemplate) -> Unit,
     onElementCropChanged: (String, Float, Float, Float) -> Unit,
-    onTextOverlayClick: (String) -> Unit,
-    onTextOverlayPositionChanged: (String, Float, Float) -> Unit,
-    onTextOverlayMove: (String, String, Float, Float) -> Unit,
-    onTextOverlayWidthChanged: (String, Float) -> Unit,
-    onTextOverlayTextChanged: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val groups = remember(slides) { groupSlides(slides) }
@@ -292,14 +268,9 @@ private fun SlidesRowCanvas(
                         SpanCanvasPreview(
                             slides = spanGroup,
                             aspectRatio = aspectRatio,
-                            selectedTextOverlayId = selectedTextOverlayId,
                             onElementCropChanged = onElementCropChanged,
                             onAddImageAtSlot = onAddImageAtSlot,
                             onTemplateSelected = onTemplateSelected,
-                            onTextOverlayClick = onTextOverlayClick,
-                            onTextOverlayMove = onTextOverlayMove,
-                            onTextOverlayWidthChanged = onTextOverlayWidthChanged,
-                            onTextOverlayTextChanged = onTextOverlayTextChanged,
                             modifier = Modifier.fillMaxSize(),
                             fillFraction = 1f,
                         )
@@ -326,17 +297,12 @@ private fun SlidesRowCanvas(
                                             slide = slide,
                                             aspectRatio = aspectRatio,
                                             selectedElementId = selectedElementId,
-                                            selectedTextOverlayId = selectedTextOverlayId,
                                             currentTemplate = slide.template,
                                             onElementClick = onSelectElement,
                                             onCanvasClick = onCanvasClick,
                                             onAddImageAtSlot = onAddImageAtSlot,
                                             onTemplateSelected = onTemplateSelected,
                                             onElementCropChanged = onElementCropChanged,
-                                            onTextOverlayClick = onTextOverlayClick,
-                                            onTextOverlayPositionChanged = onTextOverlayPositionChanged,
-                                            onTextOverlayWidthChanged = onTextOverlayWidthChanged,
-                                            onTextOverlayTextChanged = onTextOverlayTextChanged,
                                             modifier = Modifier.fillMaxSize(),
                                             fillFraction = 1f,
                                         )

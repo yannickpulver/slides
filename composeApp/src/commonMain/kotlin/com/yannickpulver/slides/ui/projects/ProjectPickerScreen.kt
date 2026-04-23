@@ -68,6 +68,8 @@ private enum class SortMode(val label: String) {
     Oldest("Oldest"),
 }
 
+private val CARD_PREVIEW_HEIGHT = 261.dp
+
 @Composable
 fun ProjectPickerScreen(
     projects: List<ProjectEntry>,
@@ -381,7 +383,7 @@ private fun NewProjectCard(onClick: () -> Unit) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(261.dp) // matches 4:3 portrait preview height at 196dp width
+                .height(CARD_PREVIEW_HEIGHT)
                 .clip(RoundedCornerShape(4.dp))
                 .border(1.dp, borderColor, RoundedCornerShape(4.dp))
                 .background(
@@ -425,10 +427,6 @@ private fun ProjectCard(
 ) {
     var hovered by remember { mutableStateOf(false) }
     val aspectRatio = meta?.aspectRatio ?: AspectRatio.PORTRAIT_4_3
-    val aw = aspectRatio.width.toFloat()
-    val ah = aspectRatio.height.toFloat()
-    // Preview height = width * (aspectH / aspectW) so portrait looks tall
-    val previewHeightDp = 196.dp * (ah / aw)
 
     Column(
         modifier = Modifier
@@ -455,7 +453,7 @@ private fun ProjectCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(previewHeightDp)
+                .height(CARD_PREVIEW_HEIGHT)
                 .clip(RoundedCornerShape(4.dp))
                 .border(
                     0.5.dp,

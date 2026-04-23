@@ -8,10 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -99,17 +95,12 @@ fun SlideCanvas(
     slide: Slide?,
     aspectRatio: AspectRatio,
     selectedElementId: String?,
-    selectedTextOverlayId: String?,
     currentTemplate: SlideTemplate?,
     onElementClick: (String) -> Unit,
     onCanvasClick: () -> Unit,
     onAddImageAtSlot: (Int, String) -> Unit,
     onTemplateSelected: (SlideTemplate) -> Unit,
     onElementCropChanged: (String, Float, Float, Float) -> Unit,
-    onTextOverlayClick: (String) -> Unit,
-    onTextOverlayPositionChanged: (String, Float, Float) -> Unit,
-    onTextOverlayWidthChanged: (String, Float) -> Unit,
-    onTextOverlayTextChanged: (String, String) -> Unit,
     modifier: Modifier = Modifier,
     fillFraction: Float = 0.9f,
 ) {
@@ -211,20 +202,6 @@ fun SlideCanvas(
                 }
             }
 
-            // Text overlay layer — on top of everything
-            slide.textOverlays.forEach { overlay ->
-                TextOverlayBox(
-                    overlay = overlay,
-                    canvasWidth = constraints.maxWidth.toFloat(),
-                    canvasHeight = constraints.maxHeight.toFloat(),
-                    isSelected = overlay.id == selectedTextOverlayId,
-                    onClick = { onTextOverlayClick(overlay.id) },
-                    onPositionChanged = { x, y -> onTextOverlayPositionChanged(overlay.id, x, y) },
-                    onWidthChanged = { w -> onTextOverlayWidthChanged(overlay.id, w) },
-                    onTextChanged = { t -> onTextOverlayTextChanged(overlay.id, t) },
-                )
-            }
-
         }
 
         if (slide.elements.any { it.type == MediaType.VIDEO }) {
@@ -245,14 +222,9 @@ fun SlideCanvas(
 fun SpanCanvasPreview(
     slides: List<Slide>,
     aspectRatio: AspectRatio,
-    selectedTextOverlayId: String?,
     onElementCropChanged: (String, Float, Float, Float) -> Unit,
     onAddImageAtSlot: (Int, String) -> Unit,
     onTemplateSelected: (SlideTemplate) -> Unit,
-    onTextOverlayClick: (String) -> Unit,
-    onTextOverlayMove: (String, String, Float, Float) -> Unit,
-    onTextOverlayWidthChanged: (String, Float) -> Unit,
-    onTextOverlayTextChanged: (String, String) -> Unit,
     modifier: Modifier = Modifier,
     fillFraction: Float = 0.9f,
 ) {
@@ -427,36 +399,6 @@ fun SpanCanvasPreview(
                 }
             }
 
-            // Text overlays — span-level layer. Overlay.x/width are normalized per slide;
-            // rebase into virtual span coords so user can drag across slices.
-            val virtualWidth = constraints.maxWidth.toFloat()
-            val virtualHeight = constraints.maxHeight.toFloat()
-            val sliceWidthPx = if (spanCount > 0) virtualWidth / spanCount else virtualWidth
-            slides.forEachIndexed { sliceIdx, slide ->
-                slide.textOverlays.forEach { overlay ->
-                    key(overlay.id) {
-                        val virtualX = (sliceIdx + overlay.x) * sliceWidthPx / virtualWidth
-                        val virtualWidthFrac = overlay.width / spanCount
-                        TextOverlayBox(
-                            overlay = overlay.copy(x = virtualX, width = virtualWidthFrac),
-                            canvasWidth = virtualWidth,
-                            canvasHeight = virtualHeight,
-                            isSelected = overlay.id == selectedTextOverlayId,
-                            onClick = { onTextOverlayClick(overlay.id) },
-                            onPositionChanged = { newX, newY ->
-                                val absPx = newX * virtualWidth
-                                val targetIdx = (absPx / sliceWidthPx).toInt().coerceIn(0, spanCount - 1)
-                                val localX = ((absPx - targetIdx * sliceWidthPx) / sliceWidthPx).coerceIn(0f, 1f)
-                                onTextOverlayMove(overlay.id, slides[targetIdx].id, localX, newY)
-                            },
-                            onWidthChanged = { newVirtualFrac ->
-                                onTextOverlayWidthChanged(overlay.id, newVirtualFrac * spanCount)
-                            },
-                            onTextChanged = { t -> onTextOverlayTextChanged(overlay.id, t) },
-                        )
-                    }
-                }
-            }
         }
     }
 }
@@ -1194,7 +1136,6 @@ fun SlideControls(
     onBackgroundColorChanged: (Long) -> Unit,
     onGapChanged: (Float) -> Unit,
     onTemplateSelected: (SlideTemplate) -> Unit,
-    onAddText: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val currentColor = slide.backgroundColorArgb.toComposeColor()
@@ -1367,241 +1308,6 @@ fun SlideControls(
             }
         }
 
-        // Separator
-        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
-
-        // Add text overlay
-        FilledTonalIconButton(
-            onClick = onAddText,
-            modifier = Modifier.size(controlHeight).pointerHoverIcon(PointerIcon.Hand),
-        ) {
-            Text("T", style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-@Composable
-fun TextOverlayControls(
-    overlay: com.yannickpulver.slides.model.TextOverlay,
-    onStyleChanged: (fontFamily: String?, fontSize: Float?, color: Long?, alignment: com.yannickpulver.slides.model.TextAlignment?) -> Unit,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val controlHeight = 28.dp
-    val separatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-    var fontExpanded by remember { mutableStateOf(false) }
-    var sizeInput by remember(overlay.id) { mutableStateOf(overlay.fontSizePx.roundToInt().toString()) }
-    val launchColorPicker = rememberSystemColorPickerLauncher { color ->
-        onStyleChanged(null, null, color, null)
-    }
-    var fontSearch by remember { mutableStateOf("") }
-    var fontNames by remember { mutableStateOf(getAvailableFontFamiliesOrNull()) }
-    LaunchedEffect(fontExpanded) {
-        if (fontExpanded && fontNames == null) {
-            // Poll until the background thread finishes
-            while (getAvailableFontFamiliesOrNull() == null) {
-                kotlinx.coroutines.delay(100)
-            }
-            fontNames = getAvailableFontFamiliesOrNull()
-        }
-    }
-
-    Row(
-        modifier = modifier
-            .shadow(4.dp, RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(50))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Font selector
-        Box {
-            Box(
-                modifier = Modifier
-                    .height(controlHeight)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                    .clip(RoundedCornerShape(6.dp))
-                    .pointerHoverIcon(PointerIcon.Hand)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { fontExpanded = true }
-                    .padding(horizontal = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    overlay.fontFamily.ifEmpty { "Default" },
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                )
-            }
-            DropdownMenu(
-                expanded = fontExpanded,
-                onDismissRequest = { fontExpanded = false; fontSearch = "" },
-                modifier = Modifier.width(240.dp).background(MaterialTheme.colorScheme.surfaceContainer),
-            ) {
-                // Search field
-                val searchFocusRequester = remember { FocusRequester() }
-                BasicTextField(
-                    value = fontSearch,
-                    onValueChange = { fontSearch = it },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                        .focusRequester(searchFocusRequester),
-                    decorationBox = { inner ->
-                        Box {
-                            if (fontSearch.isEmpty()) {
-                                Text("Search fonts…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            inner()
-                        }
-                    },
-                )
-                LaunchedEffect(fontExpanded) { if (fontExpanded) searchFocusRequester.requestFocus() }
-                Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)))
-
-                // Font list
-                if (fontNames == null) {
-                    Box(Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                } else {
-                    val filtered = if (fontSearch.isBlank()) fontNames!! else fontNames!!.filter {
-                        it.contains(fontSearch, ignoreCase = true)
-                    }
-                    Box(modifier = Modifier.height(280.dp)) {
-                        val scrollState = androidx.compose.foundation.rememberScrollState()
-                        Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
-                            if (fontSearch.isBlank()) {
-                                // Default option
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(28.dp)
-                                        .clickable { onStyleChanged("", null, null, null); fontExpanded = false; fontSearch = "" }
-                                        .padding(horizontal = 12.dp),
-                                    contentAlignment = Alignment.CenterStart,
-                                ) {
-                                    Text("Default", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                            filtered.forEach { name ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(28.dp)
-                                        .clickable { onStyleChanged(name, null, null, null); fontExpanded = false; fontSearch = "" }
-                                        .padding(horizontal = 12.dp),
-                                    contentAlignment = Alignment.CenterStart,
-                                ) {
-                                    Text(
-                                        name,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontFamily = fontFamilyFromName(name),
-                                        maxLines = 1,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Separator
-        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
-
-        // Font size
-        Text("Size", style = MaterialTheme.typography.labelMedium)
-        PxInputField(
-            value = sizeInput,
-            onValueChange = { value ->
-                val filtered = value.filter { it.isDigit() }.take(3)
-                sizeInput = filtered
-                val px = if (filtered.isEmpty()) 16f else filtered.toFloatOrNull() ?: 16f
-                onStyleChanged(null, px.coerceIn(8f, 200f), null, null)
-            },
-            controlHeight = controlHeight,
-        )
-
-        // Separator
-        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
-
-        // Alignment toggle
-        Row(
-            modifier = Modifier
-                .height(controlHeight)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                .clip(RoundedCornerShape(6.dp)),
-        ) {
-            val alignments = listOf(
-                "L" to com.yannickpulver.slides.model.TextAlignment.LEFT,
-                "C" to com.yannickpulver.slides.model.TextAlignment.CENTER,
-                "R" to com.yannickpulver.slides.model.TextAlignment.RIGHT,
-            )
-            alignments.forEachIndexed { index, (label, align) ->
-                val selected = overlay.alignment == align
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) { onStyleChanged(null, null, null, align) }
-                        .padding(horizontal = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (index < alignments.lastIndex) {
-                    Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)))
-                }
-            }
-        }
-
-        // Separator
-        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
-
-        // Color
-        ColorBubble(
-            color = WHITE_BACKGROUND.toComposeColor(),
-            selected = overlay.colorArgb == WHITE_BACKGROUND,
-            onClick = { onStyleChanged(null, null, WHITE_BACKGROUND, null) },
-            size = controlHeight,
-        )
-        ColorBubble(
-            color = BLACK_BACKGROUND.toComposeColor(),
-            selected = overlay.colorArgb == BLACK_BACKGROUND,
-            onClick = { onStyleChanged(null, null, BLACK_BACKGROUND, null) },
-            size = controlHeight,
-        )
-        ColorBubble(
-            color = Color(overlay.colorArgb.toInt()),
-            selected = overlay.colorArgb != WHITE_BACKGROUND && overlay.colorArgb != BLACK_BACKGROUND,
-            onClick = { launchColorPicker(overlay.colorArgb) },
-            label = "+",
-            size = controlHeight,
-        )
-
-        // Separator
-        Box(Modifier.height(controlHeight * 0.6f).width(1.dp).background(separatorColor))
-
-        // Delete
-        FilledTonalIconButton(
-            onClick = onDelete,
-            modifier = Modifier.size(controlHeight).pointerHoverIcon(PointerIcon.Hand),
-        ) {
-            Text("✕", style = MaterialTheme.typography.labelSmall)
-        }
     }
 }
 
@@ -1821,119 +1527,6 @@ fun TemplateIcon(template: SlideTemplate, modifier: Modifier = Modifier) {
                         .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)),
                 )
             }
-        }
-    }
-}
-
-// ── Text overlay composable ────────────────────────────────────────────
-
-@Composable
-private fun TextOverlayBox(
-    overlay: com.yannickpulver.slides.model.TextOverlay,
-    canvasWidth: Float,
-    canvasHeight: Float,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    onPositionChanged: (Float, Float) -> Unit,
-    onWidthChanged: (Float) -> Unit,
-    onTextChanged: (String) -> Unit,
-) {
-    val density = LocalDensity.current
-    var offsetX by remember(overlay.id) { mutableStateOf(overlay.x * canvasWidth) }
-    var offsetY by remember(overlay.id) { mutableStateOf(overlay.y * canvasHeight) }
-    var boxWidth by remember(overlay.id) { mutableStateOf(overlay.width * canvasWidth) }
-    var isEditing by remember(overlay.id) { mutableStateOf(false) }
-
-    // Exit editing when deselected
-    LaunchedEffect(isSelected) { if (!isSelected) isEditing = false }
-
-    // Sync from model
-    LaunchedEffect(overlay.x, overlay.y, canvasWidth, canvasHeight) {
-        offsetX = overlay.x * canvasWidth
-        offsetY = overlay.y * canvasHeight
-    }
-    LaunchedEffect(overlay.width, canvasWidth) {
-        boxWidth = overlay.width * canvasWidth
-    }
-
-    val fontSize = with(density) { (overlay.fontSizePx * (canvasHeight / 1080f)).toSp() }
-    val fontFamily = if (overlay.fontFamily.isNotEmpty()) fontFamilyFromName(overlay.fontFamily) else androidx.compose.ui.text.font.FontFamily.Default
-    val textAlign = when (overlay.alignment) {
-        com.yannickpulver.slides.model.TextAlignment.LEFT -> androidx.compose.ui.text.style.TextAlign.Start
-        com.yannickpulver.slides.model.TextAlignment.CENTER -> androidx.compose.ui.text.style.TextAlign.Center
-        com.yannickpulver.slides.model.TextAlignment.RIGHT -> androidx.compose.ui.text.style.TextAlign.End
-    }
-    val textColor = Color(overlay.colorArgb.toInt())
-    val textStyle = androidx.compose.ui.text.TextStyle(
-        color = textColor,
-        fontSize = fontSize,
-        fontFamily = fontFamily,
-        textAlign = textAlign,
-    )
-
-    Box(
-        modifier = Modifier
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .width(with(density) { boxWidth.toDp() })
-            .then(
-                if (isSelected) Modifier.border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-                else Modifier
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) {
-                if (!isSelected) onClick()
-                else if (!isEditing) isEditing = true
-            }
-            .then(
-                if (isSelected && !isEditing) {
-                    Modifier.pointerInput(overlay.id) {
-                        detectDragGestures(
-                            onDrag = { _, dragAmount ->
-                                offsetX = (offsetX + dragAmount.x).coerceIn(0f, canvasWidth - boxWidth)
-                                offsetY = (offsetY + dragAmount.y).coerceIn(0f, canvasHeight - 20f)
-                                onPositionChanged(offsetX / canvasWidth, offsetY / canvasHeight)
-                            },
-                        )
-                    }
-                } else Modifier
-            )
-            .padding(4.dp),
-    ) {
-        if (isEditing) {
-            BasicTextField(
-                value = overlay.text,
-                onValueChange = onTextChanged,
-                textStyle = textStyle,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            Text(
-                text = overlay.text,
-                style = textStyle,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        // Right edge resize handle
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .offset(x = 6.dp)
-                    .size(8.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape)
-                    .pointerHoverIcon(PointerIcon(java.awt.Cursor(java.awt.Cursor.E_RESIZE_CURSOR)))
-                    .pointerInput(overlay.id) {
-                        detectDragGestures(
-                            onDrag = { _, dragAmount ->
-                                boxWidth = (boxWidth + dragAmount.x).coerceIn(canvasWidth * 0.05f, canvasWidth - offsetX)
-                                onWidthChanged(boxWidth / canvasWidth)
-                            },
-                        )
-                    },
-            )
         }
     }
 }

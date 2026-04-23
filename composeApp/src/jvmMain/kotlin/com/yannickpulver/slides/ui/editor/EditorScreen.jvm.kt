@@ -5,7 +5,6 @@ import com.yannickpulver.slides.model.MediaElement
 import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.MediaType
 import com.yannickpulver.slides.model.Slide
-import com.yannickpulver.slides.model.TextAlignment
 import org.bytedeco.ffmpeg.global.avutil
 import org.bytedeco.javacv.FFmpegFrameGrabber
 import org.bytedeco.javacv.FFmpegFrameRecorder
@@ -56,8 +55,6 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
             )
         } catch (_: Exception) {}
     }
-
-    drawTextOverlays(g2d, slide, width, height)
 
     g2d.dispose()
     val suffix = if (scaleFactor > 1) "@${scaleFactor}x" else ""
@@ -184,8 +181,6 @@ private fun exportSlideAsVideo(
                     )
                 }
             }
-
-            drawTextOverlays(g2d, slide, width, height)
 
             g2d.dispose()
             recorder.record(compositeConverter.convert(canvas))
@@ -410,54 +405,3 @@ private fun progressiveScale(src: BufferedImage, targetW: Int, targetH: Int): Bu
     return img
 }
 
-private fun drawTextOverlays(g2d: Graphics2D, slide: Slide, canvasWidth: Int, canvasHeight: Int) {
-    val scale = canvasHeight / 1080f
-    // Match the 4.dp padding in the canvas TextOverlayBox
-    val padding = (4 * scale).roundToInt()
-    for (overlay in slide.textOverlays) {
-        val fontSize = (overlay.fontSizePx * scale).coerceAtLeast(8f)
-        val font = awtFontFromName(overlay.fontFamily, fontSize)
-        g2d.font = font
-        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-        g2d.color = awtColor(overlay.colorArgb)
-
-        val fm = g2d.fontMetrics
-        val boxX = (overlay.x * canvasWidth).roundToInt() + padding
-        val boxY = (overlay.y * canvasHeight).roundToInt() + padding
-        val boxWidth = ((overlay.width * canvasWidth) - padding * 2).roundToInt().coerceAtLeast(1)
-
-        // Word-wrap text
-        val lines = wrapText(overlay.text, fm, boxWidth)
-        var y = boxY + fm.ascent
-        for (line in lines) {
-            val lineWidth = fm.stringWidth(line)
-            val x = when (overlay.alignment) {
-                TextAlignment.LEFT -> boxX
-                TextAlignment.CENTER -> boxX + (boxWidth - lineWidth) / 2
-                TextAlignment.RIGHT -> boxX + boxWidth - lineWidth
-            }
-            g2d.drawString(line, x, y)
-            y += fm.height
-        }
-    }
-}
-
-private fun wrapText(text: String, fm: java.awt.FontMetrics, maxWidth: Int): List<String> {
-    val lines = mutableListOf<String>()
-    for (paragraph in text.split("\n")) {
-        if (paragraph.isEmpty()) { lines.add(""); continue }
-        val words = paragraph.split(" ")
-        var current = StringBuilder()
-        for (word in words) {
-            val test = if (current.isEmpty()) word else "$current $word"
-            if (fm.stringWidth(test) <= maxWidth) {
-                current = StringBuilder(test)
-            } else {
-                if (current.isNotEmpty()) lines.add(current.toString())
-                current = StringBuilder(word)
-            }
-        }
-        if (current.isNotEmpty()) lines.add(current.toString())
-    }
-    return lines
-}

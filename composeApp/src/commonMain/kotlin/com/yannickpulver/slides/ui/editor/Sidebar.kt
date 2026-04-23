@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -50,8 +48,6 @@ import com.yannickpulver.slides.model.MediaElement
 import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.model.SlideTemplate
-import com.yannickpulver.slides.model.TextAlignment
-import com.yannickpulver.slides.model.TextOverlay
 import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.model.spanSize
 import compose.icons.TablerIcons
@@ -93,15 +89,11 @@ fun EditorSidebar(
     slideIndex: Int,
     canDeleteSlide: Boolean,
     selectedElement: MediaElement?,
-    selectedTextOverlay: TextOverlay?,
     onTemplateSelected: (SlideTemplate) -> Unit,
     onBackgroundColor: (Long) -> Unit,
     onGapChanged: (Float) -> Unit,
     onFitMode: (MediaFitMode) -> Unit,
     onBorderChanged: (Float) -> Unit,
-    onAddText: () -> Unit,
-    onTextStyle: (fontFamily: String?, fontSize: Float?, color: Long?, alignment: TextAlignment?) -> Unit,
-    onTextDelete: () -> Unit,
     onDeleteSlide: () -> Unit,
     onExport: (scale: Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -141,12 +133,6 @@ fun EditorSidebar(
                         onBorderChanged = onBorderChanged,
                     )
                 }
-                TextSection(
-                    overlay = selectedTextOverlay,
-                    onStyle = onTextStyle,
-                    onDelete = onTextDelete,
-                    onAddText = onAddText,
-                )
             }
         }
         ExportSection(slideCount = (slide?.let { 1 } ?: 0), onExport = onExport)
@@ -393,132 +379,6 @@ private fun ElementSection(
 }
 
 @Composable
-private fun TextSection(
-    overlay: TextOverlay?,
-    onStyle: (fontFamily: String?, fontSize: Float?, color: Long?, alignment: TextAlignment?) -> Unit,
-    onDelete: () -> Unit,
-    onAddText: () -> Unit,
-) {
-    SectionFrame(title = "Text") {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(28.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(5.dp))
-                .pointerHoverIcon(PointerIcon.Hand)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { onAddText() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                "+ Add text",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        if (overlay == null) return@SectionFrame
-
-        Spacer(Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("Size", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            PxField(
-                value = overlay.fontSizePx.roundToInt().toString(),
-                onChange = { v -> onStyle(null, v.coerceIn(8f, 200f), null, null) },
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("Align", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Segmented(
-                options = listOf(
-                    "L" to TextAlignment.LEFT,
-                    "C" to TextAlignment.CENTER,
-                    "R" to TextAlignment.RIGHT,
-                ),
-                selected = overlay.alignment,
-                onSelect = { onStyle(null, null, null, it) },
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("Font", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FontPickerField(
-                current = overlay.fontFamily,
-                onSelect = { name -> onStyle(name, null, null, null) },
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("Color", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                listOf(0xFFFFFFFFL, 0xFF000000L, 0xFFE8755FL).forEach { c ->
-                    val selected = overlay.colorArgb == c
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(CircleShape)
-                            .background(Color(c.toInt()))
-                            .border(
-                                if (selected) 1.5.dp else 0.5.dp,
-                                if (selected) Color.White else Color.White.copy(alpha = 0.2f),
-                                CircleShape,
-                            )
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .clickable(
-                                interactionSource = remember(c) { MutableInteractionSource() },
-                                indication = null,
-                            ) { onStyle(null, null, c, null) },
-                    )
-                }
-            }
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(28.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(5.dp))
-                .pointerHoverIcon(PointerIcon.Hand)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { onDelete() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(
-                    TablerIcons.Trash,
-                    contentDescription = null,
-                    modifier = Modifier.size(12.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text("Remove", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
-@Composable
 private fun ExportSection(slideCount: Int, onExport: (Int) -> Unit) {
     var scale by remember { mutableStateOf(2) }
     Column(
@@ -700,119 +560,3 @@ private fun PxField(value: String, onChange: (Float) -> Unit) {
     }
 }
 
-@Composable
-private fun FontPickerField(
-    current: String,
-    onSelect: (String) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    var search by remember { mutableStateOf("") }
-    var fontNames by remember { mutableStateOf(getAvailableFontFamiliesOrNull()) }
-    androidx.compose.runtime.LaunchedEffect(expanded) {
-        if (expanded && fontNames == null) {
-            while (getAvailableFontFamiliesOrNull() == null) {
-                kotlinx.coroutines.delay(100)
-            }
-            fontNames = getAvailableFontFamiliesOrNull()
-        }
-    }
-
-    Box {
-        Box(
-            modifier = Modifier
-                .defaultMinSize(minWidth = 110.dp)
-                .height(22.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
-                .pointerHoverIcon(PointerIcon.Hand)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { expanded = true }
-                .padding(horizontal = 6.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Text(
-                current.ifEmpty { "Default" },
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-            )
-        }
-        androidx.compose.material3.DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false; search = "" },
-            modifier = Modifier.width(240.dp).background(MaterialTheme.colorScheme.surfaceContainer),
-        ) {
-            val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-            BasicTextField(
-                value = search,
-                onValueChange = { search = it },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                    .focusRequester(searchFocus),
-                decorationBox = { inner ->
-                    Box {
-                        if (search.isEmpty()) {
-                            Text(
-                                "Search fonts…",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        inner()
-                    }
-                },
-            )
-            androidx.compose.runtime.LaunchedEffect(expanded) { if (expanded) searchFocus.requestFocus() }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)))
-
-            val names = fontNames
-            if (names == null) {
-                Box(Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) {
-                    androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                }
-            } else {
-                val filtered = if (search.isBlank()) names else names.filter { it.contains(search, ignoreCase = true) }
-                Box(modifier = Modifier.height(280.dp)) {
-                    val scrollState = rememberScrollState()
-                    Column(modifier = Modifier.fillMaxWidth().verticalScroll(scrollState)) {
-                        if (search.isBlank()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(28.dp)
-                                    .clickable { onSelect(""); expanded = false; search = "" }
-                                    .padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.CenterStart,
-                            ) {
-                                Text("Default", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                        filtered.forEach { name ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(28.dp)
-                                    .clickable { onSelect(name); expanded = false; search = "" }
-                                    .padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.CenterStart,
-                            ) {
-                                Text(
-                                    name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontFamily = fontFamilyFromName(name),
-                                    maxLines = 1,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}

@@ -11,8 +11,6 @@ import com.yannickpulver.slides.model.MediaType
 import com.yannickpulver.slides.model.Project
 import com.yannickpulver.slides.model.Slide
 import com.yannickpulver.slides.model.SlideTemplate
-import com.yannickpulver.slides.model.TextAlignment
-import com.yannickpulver.slides.model.TextOverlay
 import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.model.spanSize
 import com.yannickpulver.slides.template.boundsForTemplate
@@ -30,7 +28,6 @@ data class EditorState(
     val project: Project = Project(),
     val selectedSlideId: String? = null,
     val selectedElementId: String? = null,
-    val selectedTextOverlayId: String? = null,
     val projectFilePath: String? = null,
     val exportProgress: Float? = null, // null = idle, 0-1 = in progress
 ) {
@@ -117,7 +114,7 @@ class EditorViewModel : ViewModel() {
     }
 
     fun selectElement(elementId: String?) {
-        _state.update { it.copy(selectedElementId = elementId, selectedTextOverlayId = if (elementId != null) null else it.selectedTextOverlayId) }
+        _state.update { it.copy(selectedElementId = elementId) }
     }
 
     fun addElementAtSlot(slotIndex: Int, sourcePath: String) {
@@ -559,134 +556,6 @@ class EditorViewModel : ViewModel() {
                 project = state.project.copy(
                     slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
                 ),
-            )
-        }
-    }
-
-    // ── Text overlays ──────────────────────────────────────────────────
-
-    fun addTextOverlay() {
-        pushUndo()
-        val overlay = TextOverlay()
-        _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
-            val updatedSlide = slide.copy(textOverlays = slide.textOverlays + overlay)
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { if (it.id == slide.id) updatedSlide else it }
-                ),
-                selectedTextOverlayId = overlay.id,
-                selectedElementId = null,
-            )
-        }
-    }
-
-    fun selectTextOverlay(id: String?) {
-        _state.update { it.copy(selectedTextOverlayId = id, selectedElementId = if (id != null) null else it.selectedElementId) }
-    }
-
-    fun updateTextOverlayPosition(id: String, x: Float, y: Float) {
-        _state.update { state ->
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { s ->
-                        if (s.textOverlays.none { it.id == id }) s
-                        else s.copy(textOverlays = s.textOverlays.map {
-                            if (it.id == id) it.copy(x = x, y = y) else it
-                        })
-                    }
-                ),
-            )
-        }
-    }
-
-    fun moveTextOverlay(id: String, toSlideId: String, x: Float, y: Float) {
-        _state.update { state ->
-            var found: TextOverlay? = null
-            val cleared = state.project.slides.map { s ->
-                val hit = s.textOverlays.find { it.id == id }
-                if (hit != null) {
-                    found = hit
-                    s.copy(textOverlays = s.textOverlays.filter { it.id != id })
-                } else s
-            }
-            val overlay = found ?: return@update state
-            val moved = overlay.copy(x = x, y = y)
-            val final = cleared.map { s ->
-                if (s.id == toSlideId) s.copy(textOverlays = s.textOverlays + moved) else s
-            }
-            state.copy(project = state.project.copy(slides = final))
-        }
-    }
-
-    fun updateTextOverlayWidth(id: String, width: Float) {
-        _state.update { state ->
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { s ->
-                        if (s.textOverlays.none { it.id == id }) s
-                        else s.copy(textOverlays = s.textOverlays.map {
-                            if (it.id == id) it.copy(width = width.coerceIn(0.05f, 1f)) else it
-                        })
-                    }
-                ),
-            )
-        }
-    }
-
-    fun updateTextOverlayText(id: String, text: String) {
-        _state.update { state ->
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { s ->
-                        if (s.textOverlays.none { it.id == id }) s
-                        else s.copy(textOverlays = s.textOverlays.map {
-                            if (it.id == id) it.copy(text = text) else it
-                        })
-                    }
-                ),
-            )
-        }
-    }
-
-    fun updateTextOverlayStyle(
-        id: String,
-        fontFamily: String? = null,
-        fontSizePx: Float? = null,
-        colorArgb: Long? = null,
-        alignment: TextAlignment? = null,
-    ) {
-        pushUndo()
-        _state.update { state ->
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { s ->
-                        if (s.textOverlays.none { it.id == id }) s
-                        else s.copy(textOverlays = s.textOverlays.map {
-                            if (it.id == id) it.copy(
-                                fontFamily = fontFamily ?: it.fontFamily,
-                                fontSizePx = fontSizePx ?: it.fontSizePx,
-                                colorArgb = colorArgb ?: it.colorArgb,
-                                alignment = alignment ?: it.alignment,
-                            ) else it
-                        })
-                    }
-                ),
-            )
-        }
-    }
-
-    fun removeTextOverlay(id: String) {
-        pushUndo()
-        _state.update { state ->
-            state.copy(
-                project = state.project.copy(
-                    slides = state.project.slides.map { s ->
-                        if (s.textOverlays.none { it.id == id }) s
-                        else s.copy(textOverlays = s.textOverlays.filter { it.id != id })
-                    }
-                ),
-                selectedTextOverlayId = if (state.selectedTextOverlayId == id) null else state.selectedTextOverlayId,
             )
         }
     }

@@ -34,19 +34,3 @@ data class ElementBounds(
     val height: Float = 1f,
 )
 
-@Serializable
-enum class TextAlignment { LEFT, CENTER, RIGHT }
-
-@OptIn(ExperimentalUuidApi::class)
-@Serializable
-data class TextOverlay(
-    val id: String = Uuid.random().toString(),
-    val text: String = "Text",
-    val x: Float = 0.1f,
-    val y: Float = 0.1f,
-    val width: Float = 0.8f,
-    val fontFamily: String = "",
-    val fontSizePx: Float = 32f,
-    val colorArgb: Long = 0xFFFFFFFF,
-    val alignment: TextAlignment = TextAlignment.CENTER,
-)
