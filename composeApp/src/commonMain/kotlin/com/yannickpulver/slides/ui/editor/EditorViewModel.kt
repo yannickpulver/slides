@@ -324,9 +324,11 @@ class EditorViewModel : ViewModel() {
         viewModelScope.launch {
             _state.update { it.copy(exportProgress = 0f) }
             withContext(Dispatchers.Default) {
+                val pad = slides.size.toString().length
                 slides.forEachIndexed { idx, slide ->
                     val baseProgress = idx.toFloat() / slides.size
-                    exportSlideAsImage(slide, aspectRatio, outputDir, scaleFactor, idx + 1) { slideProgress ->
+                    val label = (idx + 1).toString().padStart(pad, '0')
+                    exportSlideAsImage(slide, aspectRatio, outputDir, scaleFactor, label) { slideProgress ->
                         val total = (baseProgress + slideProgress / slides.size).coerceIn(0f, 1f)
                         _state.update { it.copy(exportProgress = total) }
                     }

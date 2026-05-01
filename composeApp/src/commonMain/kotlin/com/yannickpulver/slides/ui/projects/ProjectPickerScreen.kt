@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -68,7 +69,7 @@ private enum class SortMode(val label: String) {
     Oldest("Oldest"),
 }
 
-private val CARD_PREVIEW_HEIGHT = 261.dp
+private val DEFAULT_PREVIEW_RATIO = AspectRatio.PORTRAIT_4_3.let { it.width.toFloat() / it.height.toFloat() }
 
 @Composable
 fun ProjectPickerScreen(
@@ -383,7 +384,7 @@ private fun NewProjectCard(onClick: () -> Unit) {
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(CARD_PREVIEW_HEIGHT)
+                .aspectRatio(DEFAULT_PREVIEW_RATIO)
                 .clip(RoundedCornerShape(4.dp))
                 .border(1.dp, borderColor, RoundedCornerShape(4.dp))
                 .background(
@@ -450,10 +451,11 @@ private fun ProjectCard(
             ),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        val ratio = aspectRatio.width.toFloat() / aspectRatio.height.toFloat()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(CARD_PREVIEW_HEIGHT)
+                .aspectRatio(ratio)
                 .clip(RoundedCornerShape(4.dp))
                 .border(
                     0.5.dp,

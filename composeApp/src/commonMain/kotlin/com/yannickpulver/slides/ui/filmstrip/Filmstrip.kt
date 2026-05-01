@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -101,6 +102,8 @@ fun Filmstrip(
         ) {
             groups.forEach { group ->
                 val isSpan = group.size > 1
+                val groupKey = group.first().spanGroupId ?: group.first().id
+                key(groupKey) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val groupSelectId = group.first().id
                     val groupSelected = group.any { it.id == selectedSlideId }
@@ -111,6 +114,7 @@ fun Filmstrip(
                         val isFirstInGroup = indexInGroup == 0
                         val isLastInGroup = indexInGroup == group.lastIndex
 
+                        key(slide.id) {
                         Thumb(
                             slide = slide,
                             aspectRatio = aspectRatio,
@@ -185,7 +189,9 @@ fun Filmstrip(
                                     )
                                 },
                         )
+                        }
                     }
+                }
                 }
             }
 

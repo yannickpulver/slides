@@ -362,6 +362,6 @@ expect fun exportSlideAsImage(
     aspectRatio: com.yannickpulver.slides.model.AspectRatio,
     outputDir: String,
     scaleFactor: Int = 1,
-    slideIndex: Int = 1,
+    slideLabel: String = "1",
     onProgress: (Float) -> Unit = {},
 )
