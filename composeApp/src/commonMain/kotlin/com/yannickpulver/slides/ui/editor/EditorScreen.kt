@@ -363,5 +363,6 @@ expect fun exportSlideAsImage(
     outputDir: String,
     scaleFactor: Int = 1,
     slideLabel: String = "1",
+    lastModifiedMillis: Long? = null,
     onProgress: (Float) -> Unit = {},
 )

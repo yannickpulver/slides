@@ -22,18 +22,21 @@ actual fun exportSlideAsImage(
     outputDir: String,
     scaleFactor: Int,
     slideLabel: String,
+    lastModifiedMillis: Long?,
     onProgress: (Float) -> Unit,
 ) {
     val hasVideo = slide.elements.any { it.type == MediaType.VIDEO }
-    if (hasVideo) {
+    val outputFile = if (hasVideo) {
         exportSlideAsVideo(slide, aspectRatio, outputDir, scaleFactor, slideLabel, onProgress)
     } else {
-        exportSlideAsPng(slide, aspectRatio, outputDir, scaleFactor, slideLabel)
+        val f = exportSlideAsPng(slide, aspectRatio, outputDir, scaleFactor, slideLabel)
         onProgress(1f)
+        f
     }
+    if (lastModifiedMillis != null) outputFile.setLastModified(lastModifiedMillis)
 }
 
-private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: String, scaleFactor: Int, slideLabel: String) {
+private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: String, scaleFactor: Int, slideLabel: String): File {
     val width = aspectRatio.width * scaleFactor
     val height = aspectRatio.height * scaleFactor
     val canvas = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
@@ -61,6 +64,7 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
     val outputFile = File(outputDir, "slide${slideLabel}-${slide.id.take(8)}${suffix}.png")
     ImageIO.write(canvas, "png", outputFile)
     println("Exported: ${outputFile.absolutePath}")
+    return outputFile
 }
 
 private fun exportSlideAsVideo(
@@ -70,7 +74,7 @@ private fun exportSlideAsVideo(
     scaleFactor: Int,
     slideLabel: String,
     onProgress: (Float) -> Unit,
-) {
+): File {
     val width = aspectRatio.width * scaleFactor
     val height = aspectRatio.height * scaleFactor
     val fps = 30.0
@@ -211,6 +215,7 @@ private fun exportSlideAsVideo(
 
     onProgress(1f)
     println("Exported: ${outputFile.absolutePath}")
+    return outputFile
 }
 
 private fun setupGraphics(g2d: Graphics2D) {

@@ -9,6 +9,7 @@ actual fun exportSlideAsImage(
     outputDir: String,
     scaleFactor: Int,
     slideLabel: String,
+    lastModifiedMillis: Long?,
     onProgress: (Float) -> Unit,
 ) {
     // TODO: Implement Android export

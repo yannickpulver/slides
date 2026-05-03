@@ -14,6 +14,8 @@ import com.yannickpulver.slides.model.SlideTemplate
 import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.model.spanSize
 import com.yannickpulver.slides.template.boundsForTemplate
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.Dispatchers
@@ -316,6 +318,7 @@ class EditorViewModel : ViewModel() {
         _state.update { it.copy(project = it.project.copy(aspectRatio = ratio)) }
     }
 
+    @OptIn(ExperimentalTime::class)
     fun exportAllSlides(outputDir: String, scaleFactor: Int = 1) {
         val slides = _state.value.project.slides
         val aspectRatio = _state.value.project.aspectRatio
@@ -325,10 +328,12 @@ class EditorViewModel : ViewModel() {
             _state.update { it.copy(exportProgress = 0f) }
             withContext(Dispatchers.Default) {
                 val pad = slides.size.toString().length
+                val now = Clock.System.now().toEpochMilliseconds()
                 slides.forEachIndexed { idx, slide ->
                     val baseProgress = idx.toFloat() / slides.size
                     val label = (idx + 1).toString().padStart(pad, '0')
-                    exportSlideAsImage(slide, aspectRatio, outputDir, scaleFactor, label) { slideProgress ->
+                    val mtime = now - (slides.size - 1 - idx) * 1000L
+                    exportSlideAsImage(slide, aspectRatio, outputDir, scaleFactor, label, mtime) { slideProgress ->
                         val total = (baseProgress + slideProgress / slides.size).coerceIn(0f, 1f)
                         _state.update { it.copy(exportProgress = total) }
                     }
