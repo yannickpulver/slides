@@ -14,6 +14,7 @@ import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 actual fun exportSlideAsImage(
@@ -48,6 +49,14 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
     g2d.color = bgColor
     g2d.fillRect(0, 0, width, height)
 
+    val bgImage = slide.backgroundImagePath?.let {
+        try { loadExifCorrectedImage(File(it)) } catch (_: Exception) { null }
+    }
+    if (bgImage != null) {
+        val pre = preRenderBackground(bgImage, slide, width, height, scaleFactor)
+        g2d.drawImage(pre, 0, 0, null)
+    }
+
     slide.elements.take(slide.template.slotCount).sortedBy { it.zIndex }.forEach { element ->
         try {
             val sourceImage = loadExifCorrectedImage(File(element.sourcePath)) ?: return@forEach
@@ -55,6 +64,7 @@ private fun exportSlideAsPng(slide: Slide, aspectRatio: AspectRatio, outputDir: 
                 g2d, sourceImage, element, width, height, aspectRatio.width, aspectRatio.height,
                 spanIndex = slide.spanIndex, spanCount = slide.spanCount,
                 gapPx = slide.gapPx, slotCount = slide.template.slotCount,
+                slideHasBgImage = slide.backgroundImagePath != null,
             )
         } catch (_: Exception) {}
     }
@@ -104,6 +114,10 @@ private fun exportSlideAsVideo(
     val imageCache = imageElements.associateWith { element ->
         try { loadExifCorrectedImage(File(element.sourcePath)) } catch (_: Exception) { null }
     }
+    val bgImage = slide.backgroundImagePath?.let {
+        try { loadExifCorrectedImage(File(it)) } catch (_: Exception) { null }
+    }
+    val bgPreRendered = bgImage?.let { preRenderBackground(it, slide, width, height, scaleFactor) }
 
     // Cache latest video frame per element — pre-grab first frame
     val videoFrameCache = mutableMapOf<String, BufferedImage>()
@@ -172,6 +186,8 @@ private fun exportSlideAsVideo(
             g2d.color = videoBgColor
             g2d.fillRect(0, 0, width, height)
 
+            if (bgPreRendered != null) g2d.drawImage(bgPreRendered, 0, 0, null)
+
             slide.elements.take(slide.template.slotCount).sortedBy { it.zIndex }.forEach { element ->
                 val img = when (element.type) {
                     MediaType.IMAGE -> imageCache[element]
@@ -218,6 +234,63 @@ private fun exportSlideAsVideo(
     return outputFile
 }
 
+private fun preRenderBackground(
+    bgImage: BufferedImage,
+    slide: Slide,
+    width: Int,
+    height: Int,
+    scaleFactor: Int,
+): BufferedImage {
+    val virtualW = (width * slide.spanCount).toFloat()
+    val sh = height.toFloat()
+    val iw = bgImage.width.toFloat().coerceAtLeast(1f)
+    val ih = bgImage.height.toFloat().coerceAtLeast(1f)
+    val cover = max(virtualW / iw, sh / ih)
+    val drawW = (iw * cover).roundToInt()
+    val drawH = (ih * cover).roundToInt()
+    val virtualX = ((virtualW - drawW) / 2f).roundToInt()
+    val virtualY = ((sh - drawH) / 2f).roundToInt()
+    val drawX = virtualX - slide.spanIndex * width
+    val scaled = progressiveScale(bgImage, drawW, drawH)
+    val canvas = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+    val sg = canvas.createGraphics()
+    setupGraphics(sg)
+    sg.drawImage(scaled, drawX, virtualY, drawW, drawH, null)
+    sg.dispose()
+    val blurRadius = slide.backgroundImageBlurPx * scaleFactor
+    return if (blurRadius >= 0.5f) gaussianBlur(canvas, blurRadius) else canvas
+}
+
+private fun gaussianBlur(src: BufferedImage, radiusPx: Float): BufferedImage {
+    val r = radiusPx.toInt().coerceIn(1, 200)
+    val size = r * 2 + 1
+    val sigma = (radiusPx / 2f).coerceAtLeast(0.5f)
+    val kernel = FloatArray(size)
+    var sum = 0f
+    for (i in 0 until size) {
+        val x = (i - r).toFloat()
+        val v = kotlin.math.exp(-(x * x) / (2f * sigma * sigma))
+        kernel[i] = v
+        sum += v
+    }
+    for (i in 0 until size) kernel[i] /= sum
+    val argb = if (src.type == BufferedImage.TYPE_INT_ARGB) src
+    else BufferedImage(src.width, src.height, BufferedImage.TYPE_INT_ARGB).also {
+        val g = it.createGraphics(); g.drawImage(src, 0, 0, null); g.dispose()
+    }
+    val hOp = java.awt.image.ConvolveOp(
+        java.awt.image.Kernel(size, 1, kernel),
+        java.awt.image.ConvolveOp.EDGE_NO_OP,
+        null,
+    )
+    val vOp = java.awt.image.ConvolveOp(
+        java.awt.image.Kernel(1, size, kernel),
+        java.awt.image.ConvolveOp.EDGE_NO_OP,
+        null,
+    )
+    return vOp.filter(hOp.filter(argb, null), null)
+}
+
 private fun setupGraphics(g2d: Graphics2D) {
     g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
     g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
@@ -236,6 +309,7 @@ private fun drawElementToGraphics(
     spanCount: Int = 1,
     gapPx: Float = 0f,
     slotCount: Int = 1,
+    slideHasBgImage: Boolean = false,
 ) {
     // Compute gap-adjusted slot positions
     val totalGapPx = gapPx * (slotCount - 1)
@@ -247,8 +321,10 @@ private fun drawElementToGraphics(
     val slotW = (element.bounds.width * canvasWidth).roundToInt()
     val slotH = rawSlotH
 
-    g2d.color = awtColor(element.backgroundColorArgb)
-    g2d.fillRect(slotX, slotY, slotW, slotH)
+    if (!slideHasBgImage) {
+        g2d.color = awtColor(element.backgroundColorArgb)
+        g2d.fillRect(slotX, slotY, slotW, slotH)
+    }
 
     val prevClip = g2d.clip
     g2d.clipRect(slotX, slotY, slotW, slotH)
@@ -275,23 +351,25 @@ private fun drawElementToGraphics(
     val scaled = progressiveScale(sourceImage, drawW, drawH)
     g2d.drawImage(scaled, centerX, centerY, drawW, drawH, null)
     g2d.clip = prevClip
-    drawFrameMasks(
-        g2d = g2d,
-        slotX = slotX,
-        slotY = slotY,
-        slotWidth = slotW,
-        slotHeight = slotH,
-        inset = computeFrameInsetPx(
-            slotWidth = effectiveSlotW,
-            slotHeight = slotH.toFloat(),
-            logicalSlotWidth = effectiveLogicalW,
-            logicalSlotHeight = logicalCanvasHeight * element.bounds.height,
-            frameBorderPx = element.frameBorderPx,
-        ).roundToInt(),
-        color = awtColor(element.backgroundColorArgb),
-        spanIndex = spanIndex,
-        spanCount = spanCount,
-    )
+    if (!slideHasBgImage) {
+        drawFrameMasks(
+            g2d = g2d,
+            slotX = slotX,
+            slotY = slotY,
+            slotWidth = slotW,
+            slotHeight = slotH,
+            inset = computeFrameInsetPx(
+                slotWidth = effectiveSlotW,
+                slotHeight = slotH.toFloat(),
+                logicalSlotWidth = effectiveLogicalW,
+                logicalSlotHeight = logicalCanvasHeight * element.bounds.height,
+                frameBorderPx = element.frameBorderPx,
+            ).roundToInt(),
+            color = awtColor(element.backgroundColorArgb),
+            spanIndex = spanIndex,
+            spanCount = spanCount,
+        )
+    }
 }
 
 private data class ExportFrame(

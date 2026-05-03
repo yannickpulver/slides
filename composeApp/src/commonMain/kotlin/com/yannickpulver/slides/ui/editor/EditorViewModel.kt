@@ -554,6 +554,33 @@ class EditorViewModel : ViewModel() {
         }
     }
 
+    fun setBackgroundImage(path: String?) {
+        pushUndo()
+        _state.update { state ->
+            val slide = state.currentSlide ?: return@update state
+            val gid = slide.spanGroupId
+            val updatedSlides = state.project.slides.map { s ->
+                val matches = s.id == slide.id || (gid != null && s.spanGroupId == gid)
+                if (matches) s.copy(backgroundImagePath = path) else s
+            }
+            state.copy(project = state.project.copy(slides = updatedSlides))
+        }
+    }
+
+    fun setBackgroundImageBlur(blurPx: Float) {
+        pushUndo()
+        _state.update { state ->
+            val slide = state.currentSlide ?: return@update state
+            val gid = slide.spanGroupId
+            val v = blurPx.coerceIn(0f, MAX_BG_BLUR_PX)
+            val updatedSlides = state.project.slides.map { s ->
+                val matches = s.id == slide.id || (gid != null && s.spanGroupId == gid)
+                if (matches) s.copy(backgroundImageBlurPx = v) else s
+            }
+            state.copy(project = state.project.copy(slides = updatedSlides))
+        }
+    }
+
     fun updateSlideGap(gapPx: Float) {
         pushUndo()
         _state.update { state ->
@@ -570,5 +597,6 @@ class EditorViewModel : ViewModel() {
     companion object {
         private const val MAX_UNDO = 50
         const val MAX_GAP_PX = 120f
+        const val MAX_BG_BLUR_PX = 100f
     }
 }

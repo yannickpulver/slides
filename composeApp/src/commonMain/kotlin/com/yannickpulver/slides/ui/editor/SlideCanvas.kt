@@ -52,6 +52,7 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.DragData
 import androidx.compose.ui.draganddrop.dragData
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
@@ -152,6 +153,14 @@ fun SlideCanvas(
         ) {
             val density = LocalDensity.current
             val displayScale = constraints.maxWidth.toFloat() / aspectRatio.width.toFloat()
+            slide.backgroundImagePath?.let { path ->
+                val blurDp = with(density) { (slide.backgroundImageBlurPx * displayScale).toDp() }
+                BackgroundImageLayer(
+                    path = path,
+                    blurDp = blurDp,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             val gapDp = with(density) { (slide.gapPx * displayScale).toDp() }
             Column(
                 modifier = Modifier.fillMaxSize().clipToBounds(),
@@ -191,11 +200,13 @@ fun SlideCanvas(
                                     onReplaceImage = { path -> onAddImageAtSlot(slotIndex, path) },
                                     stackIndex = slotIndex,
                                     stackCount = slotBounds.size,
+                                    slideHasBgImage = slide.backgroundImagePath != null,
                                 )
                             }
                         } else {
                             EmptySlot(
                                 onAddImage = { path -> onAddImageAtSlot(slotIndex, path) },
+                                transparent = slide.backgroundImagePath != null,
                             )
                         }
                     }
@@ -316,15 +327,30 @@ fun SpanCanvasPreview(
                 Row(modifier = Modifier.fillMaxSize()) {
                     slides.forEachIndexed { i, slide ->
                         val el = slide.elements.firstOrNull() ?: return@forEachIndexed
+                        val sliceHasBgImage = slide.backgroundImagePath != null
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .clipToBounds()
-                                .background(el.backgroundColorArgb.toComposeColor())
+                                .then(
+                                    if (sliceHasBgImage) Modifier
+                                    else Modifier.background(el.backgroundColorArgb.toComposeColor())
+                                )
                                 .onSizeChanged { if (i == 0) singleSlotSize = it },
                             contentAlignment = Alignment.Center,
                         ) {
+                            slide.backgroundImagePath?.let { path ->
+                                val sliceDisplayScale = singleSlotSize.width.toFloat().coerceAtLeast(1f) / aspectRatio.width.toFloat()
+                                val blurDp = with(density) { (slide.backgroundImageBlurPx * sliceDisplayScale).toDp() }
+                                BackgroundImageLayer(
+                                    path = path,
+                                    spanCount = spanCount,
+                                    spanIndex = i,
+                                    blurDp = blurDp,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                             SpanSliceContent(
                                 element = el,
                                 singleSlotSize = singleSlotSize,
@@ -347,12 +373,14 @@ fun SpanCanvasPreview(
                                 logicalSlotHeight = aspectRatio.height.toFloat(),
                                 frameBorderPx = el.frameBorderPx,
                             )
-                            BorderMaskOverlay(
-                                insetPx = frameInsetPx,
-                                color = el.backgroundColorArgb.toComposeColor(),
-                                drawLeft = i == 0,
-                                drawRight = i == spanCount - 1,
-                            )
+                            if (!sliceHasBgImage) {
+                                BorderMaskOverlay(
+                                    insetPx = frameInsetPx,
+                                    color = el.backgroundColorArgb.toComposeColor(),
+                                    drawLeft = i == 0,
+                                    drawRight = i == spanCount - 1,
+                                )
+                            }
                         }
                     }
                 }
@@ -492,6 +520,7 @@ private fun FilledSlot(
     onReplaceImage: (String) -> Unit,
     stackIndex: Int = 0,
     stackCount: Int = 1,
+    slideHasBgImage: Boolean = false,
 ) {
     // Offsets stored normalized (fraction of slot size), work in pixels internally
     var ox by remember(element.id) { mutableStateOf(0f) }
@@ -557,7 +586,10 @@ private fun FilledSlot(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(element.backgroundColorArgb.toComposeColor())
+            .then(
+                if (slideHasBgImage) Modifier
+                else Modifier.background(element.backgroundColorArgb.toComposeColor())
+            )
             .clipToBounds()
             .onSizeChanged { slotSize = it }
             .pointerInput(element.id) {
@@ -624,12 +656,14 @@ private fun FilledSlot(
             logicalSlotHeight = logicalSlotHeight,
             frameBorderPx = element.frameBorderPx,
         )
-        BorderMaskOverlay(
-            insetPx = frameInsetPx,
-            color = element.backgroundColorArgb.toComposeColor(),
-            drawTop = stackIndex == 0,
-            drawBottom = stackIndex == stackCount - 1,
-        )
+        if (!slideHasBgImage) {
+            BorderMaskOverlay(
+                insetPx = frameInsetPx,
+                color = element.backgroundColorArgb.toComposeColor(),
+                drawTop = stackIndex == 0,
+                drawBottom = stackIndex == stackCount - 1,
+            )
+        }
 
         val replacePicker = rememberFilePickerLauncher(type = FileKitType.Image) { file ->
             file?.path?.let { onReplaceImage(it) }
@@ -1064,7 +1098,7 @@ private fun VideoSlotContent(
 // ── Empty slot ──────────────────────────────────────────────────────────
 
 @Composable
-private fun EmptySlot(onAddImage: (String) -> Unit) {
+private fun EmptySlot(onAddImage: (String) -> Unit, transparent: Boolean = false) {
     val launcher = rememberFilePickerLauncher(
         type = FileKitType.ImageAndVideo,
     ) { file -> file?.path?.let(onAddImage) }
@@ -1072,7 +1106,7 @@ private fun EmptySlot(onAddImage: (String) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .then(if (transparent) Modifier else Modifier.background(Color(0xFFF5F5F5)))
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1531,6 +1565,53 @@ fun TemplateIcon(template: SlideTemplate, modifier: Modifier = Modifier) {
     }
 }
 
+// ── Background image layer ────────────────────────────────────────────
+
+@Composable
+private fun BackgroundImageLayer(
+    path: String,
+    spanCount: Int = 1,
+    spanIndex: Int = 0,
+    blurDp: Dp = 0.dp,
+    modifier: Modifier = Modifier,
+) {
+    var bitmap by remember(path) { mutableStateOf(bitmapCache[path]) }
+    LaunchedEffect(path) {
+        if (bitmap == null) {
+            bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                loadCachedBitmap(path)
+            }
+        }
+    }
+    val bmp = bitmap
+    BoxWithConstraints(
+        modifier = modifier.clipToBounds(),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bmp == null) return@BoxWithConstraints
+        val density = LocalDensity.current
+        val sw = constraints.maxWidth.toFloat()
+        val sh = constraints.maxHeight.toFloat()
+        if (sw <= 0f || sh <= 0f) return@BoxWithConstraints
+        val iw = bmp.width.toFloat().coerceAtLeast(1f)
+        val ih = bmp.height.toFloat().coerceAtLeast(1f)
+        val virtualW = sw * spanCount
+        val cover = max(virtualW / iw, sh / ih)
+        val drawW = iw * cover
+        val drawH = ih * cover
+        val centerOffsetX = (virtualW - sw) / 2f - spanIndex * sw
+        Image(
+            bitmap = bmp,
+            contentDescription = null,
+            modifier = Modifier
+                .requiredSize(with(density) { drawW.toDp() }, with(density) { drawH.toDp() })
+                .offset { IntOffset(centerOffsetX.roundToInt(), 0) }
+                .then(if (blurDp > 0.dp) Modifier.blur(blurDp) else Modifier),
+            contentScale = ContentScale.FillBounds,
+        )
+    }
+}
+
 // ── Bitmap cache ───────────────────────────────────────────────────────
 
 private val bitmapCache = java.util.concurrent.ConcurrentHashMap<String, ImageBitmap>()
@@ -1594,6 +1675,16 @@ fun SlidePreview(
         ) {
             val density = LocalDensity.current
             val displayScale = constraints.maxWidth.toFloat() / aspectRatio.width.toFloat()
+            slide.backgroundImagePath?.let { path ->
+                val blurDp = with(density) { (slide.backgroundImageBlurPx * displayScale).toDp() }
+                BackgroundImageLayer(
+                    path = path,
+                    spanCount = slide.spanCount,
+                    spanIndex = slide.spanIndex,
+                    blurDp = blurDp,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             val gapDp = with(density) { (slide.gapPx * displayScale).toDp() }
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -1614,8 +1705,9 @@ fun SlidePreview(
                                 spanCount = slide.spanCount,
                                 stackIndex = slotIdx,
                                 stackCount = slotBounds.size,
+                                slideHasBgImage = slide.backgroundImagePath != null,
                             )
-                        } else {
+                        } else if (slide.backgroundImagePath == null) {
                             Box(
                                 Modifier.fillMaxSize().background(Color(0xFFF5F5F5)),
                                 contentAlignment = Alignment.Center,
@@ -1644,6 +1736,7 @@ private fun PreviewSlotContent(
     spanCount: Int = 1,
     stackIndex: Int = 0,
     stackCount: Int = 1,
+    slideHasBgImage: Boolean = false,
 ) {
     var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
     var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
@@ -1693,7 +1786,10 @@ private fun PreviewSlotContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(element.backgroundColorArgb.toComposeColor())
+                .then(
+                    if (slideHasBgImage) Modifier
+                    else Modifier.background(element.backgroundColorArgb.toComposeColor())
+                )
                 .onSizeChanged { slotSize = it },
             contentAlignment = Alignment.Center,
         ) {
@@ -1705,27 +1801,32 @@ private fun PreviewSlotContent(
                     .offset { IntOffset(sliceShiftX.roundToInt(), frame.shiftY.roundToInt()) },
                 contentScale = ContentScale.FillBounds,
             )
-            BorderMaskOverlay(
-                insetPx = computeFrameInsetPx(
-                    slotWidth = effectiveSlotWidth,
-                    slotHeight = sh,
-                    logicalSlotWidth = effectiveLogicalWidth,
-                    logicalSlotHeight = logicalSlotHeight,
-                    frameBorderPx = element.frameBorderPx,
-                ),
-                color = element.backgroundColorArgb.toComposeColor(),
-                drawTop = stackIndex == 0,
-                drawBottom = stackIndex == stackCount - 1,
-                drawLeft = spanIndex == 0,
-                drawRight = spanIndex == spanCount - 1,
-            )
+            if (!slideHasBgImage) {
+                BorderMaskOverlay(
+                    insetPx = computeFrameInsetPx(
+                        slotWidth = effectiveSlotWidth,
+                        slotHeight = sh,
+                        logicalSlotWidth = effectiveLogicalWidth,
+                        logicalSlotHeight = logicalSlotHeight,
+                        frameBorderPx = element.frameBorderPx,
+                    ),
+                    color = element.backgroundColorArgb.toComposeColor(),
+                    drawTop = stackIndex == 0,
+                    drawBottom = stackIndex == stackCount - 1,
+                    drawLeft = spanIndex == 0,
+                    drawRight = spanIndex == spanCount - 1,
+                )
+            }
         }
     } else {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .onSizeChanged { slotSize = it }
-                .background(element.backgroundColorArgb.toComposeColor()),
+                .then(
+                    if (slideHasBgImage) Modifier
+                    else Modifier.background(element.backgroundColorArgb.toComposeColor())
+                ),
             contentAlignment = Alignment.Center,
         ) {
             if (currentBitmap == null && loading) {

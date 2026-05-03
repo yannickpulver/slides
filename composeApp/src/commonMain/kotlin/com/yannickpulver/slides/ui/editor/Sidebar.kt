@@ -52,11 +52,18 @@ import com.yannickpulver.slides.model.isSpanTemplate
 import com.yannickpulver.slides.model.spanSize
 import compose.icons.TablerIcons
 import compose.icons.tablericons.Download
+import compose.icons.tablericons.Photo
+import compose.icons.tablericons.Plus
 import compose.icons.tablericons.Trash
+import compose.icons.tablericons.X
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.path
 import kotlin.math.roundToInt
 
 private const val MAX_FRAME_BORDER_PX = 240f
 private const val MAX_GAP_PX = 120f
+private const val MAX_BG_BLUR_PX = 100f
 
 private val TightLineHeight = LineHeightStyle(
     alignment = LineHeightStyle.Alignment.Center,
@@ -66,9 +73,6 @@ private val TightLineHeight = LineHeightStyle(
 private val SWATCHES = listOf(
     0xFFFFFFFFL to "white",
     0xFF000000L to "black",
-    0xFFF4EFE7L to "cream",
-    0xFFE8755FL to "coral",
-    0xFF2E4A3AL to "forest",
 )
 
 private val STACK_TEMPLATES = listOf(
@@ -91,6 +95,8 @@ fun EditorSidebar(
     selectedElement: MediaElement?,
     onTemplateSelected: (SlideTemplate) -> Unit,
     onBackgroundColor: (Long) -> Unit,
+    onBackgroundImage: (String?) -> Unit,
+    onBackgroundImageBlur: (Float) -> Unit,
     onGapChanged: (Float) -> Unit,
     onFitMode: (MediaFitMode) -> Unit,
     onBorderChanged: (Float) -> Unit,
@@ -124,6 +130,8 @@ fun EditorSidebar(
                 CanvasSection(
                     slide = slide,
                     onBackgroundColor = onBackgroundColor,
+                    onBackgroundImage = onBackgroundImage,
+                    onBackgroundImageBlur = onBackgroundImageBlur,
                     onGapChanged = onGapChanged,
                 )
                 if (selectedElement != null) {
@@ -298,8 +306,18 @@ private fun LayoutTile(
 private fun CanvasSection(
     slide: Slide,
     onBackgroundColor: (Long) -> Unit,
+    onBackgroundImage: (String?) -> Unit,
+    onBackgroundImageBlur: (Float) -> Unit,
     onGapChanged: (Float) -> Unit,
 ) {
+    val bgPicker = rememberFilePickerLauncher(type = FileKitType.Image) { file ->
+        file?.path?.let { onBackgroundImage(it) }
+    }
+    val launchSystemColorPicker = rememberSystemColorPickerLauncher { argb ->
+        if (slide.backgroundImagePath != null) onBackgroundImage(null)
+        onBackgroundColor(argb)
+    }
+    val isCustomColor = SWATCHES.none { it.first == slide.backgroundColorArgb }
     SectionFrame(title = "Canvas") {
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -309,7 +327,7 @@ private fun CanvasSection(
             Text("Background", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 SWATCHES.forEach { (argb, _) ->
-                    val selected = slide.backgroundColorArgb == argb
+                    val selected = slide.backgroundColorArgb == argb && slide.backgroundImagePath == null
                     Box(
                         modifier = Modifier
                             .size(16.dp)
@@ -324,9 +342,125 @@ private fun CanvasSection(
                             .clickable(
                                 interactionSource = remember(argb) { MutableInteractionSource() },
                                 indication = null,
-                            ) { onBackgroundColor(argb) },
+                            ) {
+                                if (slide.backgroundImagePath != null) onBackgroundImage(null)
+                                onBackgroundColor(argb)
+                            },
                     )
                 }
+                val customSelected = isCustomColor && slide.backgroundImagePath == null
+                Box(
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isCustomColor) Color(slide.backgroundColorArgb.toInt())
+                            else Color.Transparent
+                        )
+                        .border(
+                            if (customSelected) 1.5.dp else 0.5.dp,
+                            if (customSelected) Color.White
+                            else MaterialTheme.colorScheme.outline,
+                            CircleShape,
+                        )
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { launchSystemColorPicker(slide.backgroundColorArgb) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (!isCustomColor) {
+                        Icon(
+                            TablerIcons.Plus,
+                            contentDescription = "Pick custom color",
+                            modifier = Modifier.size(10.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("Image", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(
+                    modifier = Modifier
+                        .height(22.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            if (slide.backgroundImagePath != null) MaterialTheme.colorScheme.surfaceContainerHigh
+                            else MaterialTheme.colorScheme.surfaceContainer,
+                        )
+                        .border(
+                            0.5.dp,
+                            if (slide.backgroundImagePath != null) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outline,
+                            RoundedCornerShape(4.dp),
+                        )
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { bgPicker.launch() }
+                        .padding(horizontal = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(
+                            TablerIcons.Photo,
+                            contentDescription = null,
+                            modifier = Modifier.size(11.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            if (slide.backgroundImagePath != null) "Replace" else "Pick",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (slide.backgroundImagePath != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer)
+                            .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) { onBackgroundImage(null) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            TablerIcons.X,
+                            contentDescription = "Clear background image",
+                            modifier = Modifier.size(11.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+        if (slide.backgroundImagePath != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Blur", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                PxField(
+                    value = slide.backgroundImageBlurPx.roundToInt().toString(),
+                    onChange = { v -> onBackgroundImageBlur(v.coerceIn(0f, MAX_BG_BLUR_PX)) },
+                )
             }
         }
         if (slide.template.slotCount > 1) {

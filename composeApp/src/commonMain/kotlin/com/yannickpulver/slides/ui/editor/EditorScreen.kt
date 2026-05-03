@@ -134,6 +134,8 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     selectedElement = selectedElement,
                     onTemplateSelected = viewModel::applyTemplate,
                     onBackgroundColor = { argb -> viewModel.updateSlideStyle(backgroundColorArgb = argb) },
+                    onBackgroundImage = viewModel::setBackgroundImage,
+                    onBackgroundImageBlur = viewModel::setBackgroundImageBlur,
                     onGapChanged = viewModel::updateSlideGap,
                     onFitMode = { mode -> viewModel.updateSlideStyle(fitMode = mode) },
                     onBorderChanged = { border -> viewModel.updateSlideStyle(frameBorderPx = border) },

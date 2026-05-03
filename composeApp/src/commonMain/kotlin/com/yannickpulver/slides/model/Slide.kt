@@ -13,6 +13,8 @@ data class Slide(
     val hasChosenTemplate: Boolean = false,
     val gapPx: Float = 0f,
     val backgroundColorArgb: Long = 0xFFFFFFFFL,
+    val backgroundImagePath: String? = null,
+    val backgroundImageBlurPx: Float = 0f,
     val spanGroupId: String? = null,
     val spanIndex: Int = 0,
     val spanCount: Int = 1,
