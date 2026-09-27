@@ -1,5 +1,6 @@
 package com.yannickpulver.slides.ui.editor
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +8,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontFamily
@@ -44,6 +47,7 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yannickpulver.slides.model.FilmEdge
 import com.yannickpulver.slides.model.MediaElement
 import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.Slide
@@ -100,6 +104,7 @@ fun EditorSidebar(
     onGapChanged: (Float) -> Unit,
     onFitMode: (MediaFitMode) -> Unit,
     onBorderChanged: (Float) -> Unit,
+    onFilmEdge: (FilmEdge?) -> Unit,
     onDeleteSlide: () -> Unit,
     onExport: (scale: Int) -> Unit,
     modifier: Modifier = Modifier,
@@ -139,6 +144,7 @@ fun EditorSidebar(
                         element = selectedElement,
                         onFitMode = onFitMode,
                         onBorderChanged = onBorderChanged,
+                        onFilmEdge = onFilmEdge,
                     )
                 }
             }
@@ -484,6 +490,7 @@ private fun ElementSection(
     element: MediaElement,
     onFitMode: (MediaFitMode) -> Unit,
     onBorderChanged: (Float) -> Unit,
+    onFilmEdge: (FilmEdge?) -> Unit,
 ) {
     SectionFrame(title = "Image") {
         Row(
@@ -508,6 +515,57 @@ private fun ElementSection(
                 value = element.frameBorderPx.roundToInt().toString(),
                 onChange = { v -> onBorderChanged(v.coerceIn(0f, MAX_FRAME_BORDER_PX)) },
             )
+        }
+        Text(
+            "Film edge",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            FilmEdgeChip(edge = null, selected = element.filmEdge == null, onClick = { onFilmEdge(null) })
+            FilmEdge.entries.forEach { edge ->
+                FilmEdgeChip(edge = edge, selected = element.filmEdge == edge, onClick = { onFilmEdge(edge) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilmEdgeChip(edge: FilmEdge?, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(3.dp)
+    Box(
+        modifier = Modifier
+            .size(width = 27.dp, height = 36.dp)
+            .clip(shape)
+            .background(Color(0xFF7A8A99))
+            .border(
+                if (selected) 1.5.dp else 0.5.dp,
+                if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                shape,
+            )
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (edge == null) {
+            Icon(TablerIcons.X, contentDescription = "No film edge", tint = Color.White, modifier = Modifier.size(12.dp))
+        } else {
+            rememberFilmEdgeBitmap(edge, landscape = false)?.let {
+                Image(
+                    bitmap = it,
+                    contentDescription = edge.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.FillBounds,
+                )
+            }
         }
     }
 }

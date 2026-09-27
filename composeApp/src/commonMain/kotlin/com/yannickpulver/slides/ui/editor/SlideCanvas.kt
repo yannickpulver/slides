@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.BoxWithConstraintsScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -56,7 +57,9 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -71,6 +74,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.yannickpulver.slides.model.AspectRatio
+import com.yannickpulver.slides.model.FilmEdge
 import com.yannickpulver.slides.model.MediaElement
 import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.MediaType
@@ -88,6 +92,8 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.path
 import kotlin.math.max
+import org.jetbrains.compose.resources.decodeToImageBitmap
+import slides.composeapp.generated.resources.Res
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalFoundationApi::class)
@@ -322,6 +328,7 @@ fun SpanCanvasPreview(
                     } else Modifier
                 ),
         ) {
+            val fallbackSlotSize = IntSize(constraints.maxWidth / spanCount, constraints.maxHeight)
             if (element != null) {
                 // Render each slide's slice side-by-side
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -353,7 +360,9 @@ fun SpanCanvasPreview(
                             }
                             SpanSliceContent(
                                 element = el,
-                                singleSlotSize = singleSlotSize,
+                                // Fall back to the constraints until the first slice reports its size
+                                singleSlotSize = singleSlotSize.takeIf { it.width > 0 }
+                                    ?: fallbackSlotSize,
                                 spanCount = spanCount,
                                 spanIndex = i,
                                 offsetX = ox,
@@ -444,16 +453,9 @@ private fun SpanSliceContent(
     logicalSlotHeight: Float,
     onImageSizeKnown: (Int, Int) -> Unit,
 ) {
-    var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
-    var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
-    LaunchedEffect(element.sourcePath) {
-        if (bitmap == null) {
-            bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                loadCachedBitmap(element.sourcePath)
-            }
-            loading = false
-        }
-    }
+    val media = rememberMediaBitmap(element.sourcePath)
+    val bitmap = media.bitmap
+    val loading = media.loading
     val density = LocalDensity.current
 
     LaunchedEffect(bitmap) {
@@ -498,9 +500,10 @@ private fun SpanSliceContent(
                     .offset { IntOffset(sliceShiftX.roundToInt(), frame.shiftY.roundToInt()) },
                 contentScale = ContentScale.FillBounds,
             )
+            FilmEdgeOverlay(element.filmEdge, frame.edgeRect, offsetX = spanIndex * sw)
         }
         else -> {
-            Box(Modifier.fillMaxSize().background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (loading) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
             }
         }
@@ -522,192 +525,196 @@ private fun FilledSlot(
     stackCount: Int = 1,
     slideHasBgImage: Boolean = false,
 ) {
-    // Offsets stored normalized (fraction of slot size), work in pixels internally
-    var ox by remember(element.id) { mutableStateOf(0f) }
-    var oy by remember(element.id) { mutableStateOf(0f) }
-    var scale by remember(element.id) { mutableStateOf(element.cropScale) }
-    var slotSize by remember { mutableStateOf(IntSize.Zero) }
-    var imgSize by remember(element.id) { mutableStateOf(IntSize.Zero) }
-    var videoToggle by remember(element.id) { mutableStateOf<(() -> Unit)?>(null) }
-    var initialized by remember(element.id) { mutableStateOf(false) }
-    val cropEnabled = element.fitMode == MediaFitMode.FILL
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Measured up front so the first frame already draws at full size (no white flash)
+        val measuredSize = measuredSlotSize()
+        // Offsets stored normalized (fraction of slot size), work in pixels internally
+        var ox by remember(element.id) { mutableStateOf(element.cropOffsetX * measuredSize.width) }
+        var oy by remember(element.id) { mutableStateOf(element.cropOffsetY * measuredSize.height) }
+        var scale by remember(element.id) { mutableStateOf(element.cropScale) }
+        var slotSize by remember { mutableStateOf(measuredSize) }
+        var imgSize by remember(element.id) { mutableStateOf(IntSize.Zero) }
+        var videoToggle by remember(element.id) { mutableStateOf<(() -> Unit)?>(null) }
+        var initialized by remember(element.id) { mutableStateOf(measuredSize.width > 0) }
+        val cropEnabled = element.fitMode == MediaFitMode.FILL
 
-    // Denormalize offsets when slot size becomes available
-    LaunchedEffect(element.id, slotSize) {
-        if (slotSize.width > 0 && !initialized) {
-            ox = element.cropOffsetX * slotSize.width
-            oy = element.cropOffsetY * slotSize.height
-            initialized = true
-        }
-    }
-
-    // Reset local state when model crop is zeroed (e.g. layout switch)
-    LaunchedEffect(element.cropOffsetX, element.cropOffsetY, element.cropScale) {
-        if (element.cropOffsetX == 0f && element.cropOffsetY == 0f && element.cropScale == 1f && initialized) {
-            ox = 0f
-            oy = 0f
-            scale = 1f
-        }
-    }
-
-    fun minScale(): Float = 1f
-
-    fun clamp() {
-        if (!cropEnabled) return
-        val sw = slotSize.width.toFloat()
-        val sh = slotSize.height.toFloat()
-        val iw = imgSize.width.toFloat().coerceAtLeast(1f)
-        val ih = imgSize.height.toFloat().coerceAtLeast(1f)
-        val inset = computeFrameInsetPx(
-            slotWidth = sw,
-            slotHeight = sh,
-            logicalSlotWidth = logicalSlotWidth,
-            logicalSlotHeight = logicalSlotHeight,
-            frameBorderPx = element.frameBorderPx,
-        )
-        val availableWidth = (sw - inset * 2f).coerceAtLeast(1f)
-        val availableHeight = (sh - inset * 2f).coerceAtLeast(1f)
-        val cropScale = max(availableWidth / iw, availableHeight / ih)
-        val drawW = iw * cropScale * scale
-        val drawH = ih * cropScale * scale
-        val maxOx = ((drawW - availableWidth) / 2f).coerceAtLeast(0f)
-        val maxOy = ((drawH - availableHeight) / 2f).coerceAtLeast(0f)
-        ox = ox.coerceIn(-maxOx, maxOx)
-        oy = oy.coerceIn(-maxOy, maxOy)
-    }
-
-    // Save normalized offsets
-    fun saveOffsets() {
-        val sw = slotSize.width.toFloat().coerceAtLeast(1f)
-        val sh = slotSize.height.toFloat().coerceAtLeast(1f)
-        onCropChanged(ox / sw, oy / sh, scale)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(
-                if (slideHasBgImage) Modifier
-                else Modifier.background(element.backgroundColorArgb.toComposeColor())
-            )
-            .clipToBounds()
-            .onSizeChanged { slotSize = it }
-            .pointerInput(element.id) {
-                detectTapGestures {
-                    onClick()
-                    videoToggle?.invoke()
-                }
-            }
-            .then(
-                if (cropEnabled) {
-                    Modifier.pointerInput(element.id) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(minScale(), 5f)
-                            ox += pan.x
-                            oy += pan.y
-                            clamp()
-                            saveOffsets()
-                        }
-                    }
-                } else {
-                    Modifier
-                }
-            ),
-    ) {
-        val drawTop = stackIndex == 0
-        val drawBottom = stackIndex == stackCount - 1
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (element.type == MediaType.VIDEO) {
-                VideoSlotContent(
-                    element = element,
-                    offsetX = ox, offsetY = oy, scale = scale,
-                    slotSize = slotSize,
-                    logicalSlotWidth = logicalSlotWidth,
-                    logicalSlotHeight = logicalSlotHeight,
-                    drawTop = drawTop,
-                    drawBottom = drawBottom,
-                    onImageSizeKnown = { w, h ->
-                        imgSize = IntSize(w, h)
-                        clamp()
-                    },
-                    onToggleReady = { videoToggle = it },
-                )
-            } else {
-                ImageSlotContent(
-                    element = element,
-                    offsetX = ox, offsetY = oy, scale = scale,
-                    slotSize = slotSize,
-                    logicalSlotWidth = logicalSlotWidth,
-                    logicalSlotHeight = logicalSlotHeight,
-                    drawTop = drawTop,
-                    drawBottom = drawBottom,
-                    onImageSizeKnown = { w, h ->
-                        imgSize = IntSize(w, h)
-                        clamp()
-                    },
-                )
+        // Denormalize offsets when slot size becomes available
+        LaunchedEffect(element.id, slotSize) {
+            if (slotSize.width > 0 && !initialized) {
+                ox = element.cropOffsetX * slotSize.width
+                oy = element.cropOffsetY * slotSize.height
+                initialized = true
             }
         }
 
-        val frameInsetPx = computeFrameInsetPx(
-            slotWidth = slotSize.width.toFloat(),
-            slotHeight = slotSize.height.toFloat(),
-            logicalSlotWidth = logicalSlotWidth,
-            logicalSlotHeight = logicalSlotHeight,
-            frameBorderPx = element.frameBorderPx,
-        )
-        if (!slideHasBgImage) {
-            BorderMaskOverlay(
-                insetPx = frameInsetPx,
-                color = element.backgroundColorArgb.toComposeColor(),
-                drawTop = stackIndex == 0,
-                drawBottom = stackIndex == stackCount - 1,
-            )
+        // Reset local state when model crop is zeroed (e.g. layout switch)
+        LaunchedEffect(element.cropOffsetX, element.cropOffsetY, element.cropScale) {
+            if (element.cropOffsetX == 0f && element.cropOffsetY == 0f && element.cropScale == 1f && initialized) {
+                ox = 0f
+                oy = 0f
+                scale = 1f
+            }
         }
 
-        val replacePicker = rememberFilePickerLauncher(type = FileKitType.Image) { file ->
-            file?.path?.let { onReplaceImage(it) }
-        }
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp)
-                .size(26.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.55f))
-                .pointerHoverIcon(PointerIcon.Hand)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { replacePicker.launch() },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                TablerIcons.Refresh,
-                contentDescription = "Change image",
-                tint = Color.White,
-                modifier = Modifier.size(13.dp),
-            )
-        }
+        fun minScale(): Float = 1f
 
-        // Corner resize handles at image corners
-        if (isSelected && cropEnabled && slotSize.width > 0 && imgSize.width > 0) {
-            CornerHandles(
-                scale = scale,
-                offsetX = ox,
-                offsetY = oy,
-                slotSize = slotSize,
+        fun clamp() {
+            if (!cropEnabled) return
+            val sw = slotSize.width.toFloat()
+            val sh = slotSize.height.toFloat()
+            val iw = imgSize.width.toFloat().coerceAtLeast(1f)
+            val ih = imgSize.height.toFloat().coerceAtLeast(1f)
+            val inset = computeFrameInsetPx(
+                slotWidth = sw,
+                slotHeight = sh,
                 logicalSlotWidth = logicalSlotWidth,
                 logicalSlotHeight = logicalSlotHeight,
                 frameBorderPx = element.frameBorderPx,
-                imgSize = imgSize,
-                onScaleChange = { newScale ->
-                    scale = newScale.coerceIn(minScale(), 5f)
-                    clamp()
-                    saveOffsets()
-                },
-                onScaleEnd = {},
             )
+            val availableWidth = (sw - inset * 2f).coerceAtLeast(1f)
+            val availableHeight = (sh - inset * 2f).coerceAtLeast(1f)
+            val cropScale = max(availableWidth / iw, availableHeight / ih)
+            val drawW = iw * cropScale * scale
+            val drawH = ih * cropScale * scale
+            val maxOx = ((drawW - availableWidth) / 2f).coerceAtLeast(0f)
+            val maxOy = ((drawH - availableHeight) / 2f).coerceAtLeast(0f)
+            ox = ox.coerceIn(-maxOx, maxOx)
+            oy = oy.coerceIn(-maxOy, maxOy)
+        }
+
+        // Save normalized offsets
+        fun saveOffsets() {
+            val sw = slotSize.width.toFloat().coerceAtLeast(1f)
+            val sh = slotSize.height.toFloat().coerceAtLeast(1f)
+            onCropChanged(ox / sw, oy / sh, scale)
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (slideHasBgImage) Modifier
+                    else Modifier.background(element.backgroundColorArgb.toComposeColor())
+                )
+                .clipToBounds()
+                .onSizeChanged { slotSize = it }
+                .pointerInput(element.id) {
+                    detectTapGestures {
+                        onClick()
+                        videoToggle?.invoke()
+                    }
+                }
+                .then(
+                    if (cropEnabled) {
+                        Modifier.pointerInput(element.id) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(minScale(), 5f)
+                                ox += pan.x
+                                oy += pan.y
+                                clamp()
+                                saveOffsets()
+                            }
+                        }
+                    } else {
+                        Modifier
+                    }
+                ),
+        ) {
+            val drawTop = stackIndex == 0
+            val drawBottom = stackIndex == stackCount - 1
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (element.type == MediaType.VIDEO) {
+                    VideoSlotContent(
+                        element = element,
+                        offsetX = ox, offsetY = oy, scale = scale,
+                        slotSize = slotSize,
+                        logicalSlotWidth = logicalSlotWidth,
+                        logicalSlotHeight = logicalSlotHeight,
+                        drawTop = drawTop,
+                        drawBottom = drawBottom,
+                        onImageSizeKnown = { w, h ->
+                            imgSize = IntSize(w, h)
+                            clamp()
+                        },
+                        onToggleReady = { videoToggle = it },
+                    )
+                } else {
+                    ImageSlotContent(
+                        element = element,
+                        offsetX = ox, offsetY = oy, scale = scale,
+                        slotSize = slotSize,
+                        logicalSlotWidth = logicalSlotWidth,
+                        logicalSlotHeight = logicalSlotHeight,
+                        drawTop = drawTop,
+                        drawBottom = drawBottom,
+                        onImageSizeKnown = { w, h ->
+                            imgSize = IntSize(w, h)
+                            clamp()
+                        },
+                    )
+                }
+            }
+
+            val frameInsetPx = computeFrameInsetPx(
+                slotWidth = slotSize.width.toFloat(),
+                slotHeight = slotSize.height.toFloat(),
+                logicalSlotWidth = logicalSlotWidth,
+                logicalSlotHeight = logicalSlotHeight,
+                frameBorderPx = element.frameBorderPx,
+            )
+            if (!slideHasBgImage) {
+                BorderMaskOverlay(
+                    insetPx = frameInsetPx,
+                    color = element.backgroundColorArgb.toComposeColor(),
+                    drawTop = stackIndex == 0,
+                    drawBottom = stackIndex == stackCount - 1,
+                )
+            }
+
+            val replacePicker = rememberFilePickerLauncher(type = FileKitType.Image) { file ->
+                file?.path?.let { onReplaceImage(it) }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.55f))
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { replacePicker.launch() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    TablerIcons.Refresh,
+                    contentDescription = "Change image",
+                    tint = Color.White,
+                    modifier = Modifier.size(13.dp),
+                )
+            }
+
+            // Corner resize handles at image corners
+            if (isSelected && cropEnabled && slotSize.width > 0 && imgSize.width > 0) {
+                CornerHandles(
+                    scale = scale,
+                    offsetX = ox,
+                    offsetY = oy,
+                    slotSize = slotSize,
+                    logicalSlotWidth = logicalSlotWidth,
+                    logicalSlotHeight = logicalSlotHeight,
+                    frameBorderPx = element.frameBorderPx,
+                    imgSize = imgSize,
+                    onScaleChange = { newScale ->
+                        scale = newScale.coerceIn(minScale(), 5f)
+                        clamp()
+                        saveOffsets()
+                    },
+                    onScaleEnd = {},
+                )
+            }
         }
     }
 }
@@ -754,6 +761,36 @@ private fun BorderMaskOverlay(
                 .background(color),
         )
     }
+}
+
+@Composable
+private fun FilmEdgeOverlay(edge: FilmEdge?, rect: Rect, offsetX: Float = 0f) {
+    if (edge == null || rect.width <= 0f || rect.height <= 0f) return
+    val bitmap = rememberFilmEdgeBitmap(edge, landscape = rect.width > rect.height) ?: return
+    androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+        drawImage(
+            image = bitmap,
+            dstOffset = IntOffset((rect.left - offsetX).roundToInt(), rect.top.roundToInt()),
+            dstSize = IntSize(rect.width.roundToInt(), rect.height.roundToInt()),
+            filterQuality = FilterQuality.High,
+        )
+    }
+}
+
+private val filmEdgeCache = java.util.concurrent.ConcurrentHashMap<String, ImageBitmap>()
+
+@Composable
+internal fun rememberFilmEdgeBitmap(edge: FilmEdge, landscape: Boolean): ImageBitmap? {
+    val path = edge.resourcePath(landscape = landscape, preview = true)
+    var bitmap by remember(path) { mutableStateOf(filmEdgeCache[path]) }
+    LaunchedEffect(path) {
+        if (bitmap == null) {
+            bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                Res.readBytes(path).decodeToImageBitmap()
+            }.also { filmEdgeCache[path] = it }
+        }
+    }
+    return bitmap
 }
 
 @Composable
@@ -869,16 +906,9 @@ private fun ImageSlotContent(
     drawLeft: Boolean = true,
     drawRight: Boolean = true,
 ) {
-    var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
-    var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
-    LaunchedEffect(element.sourcePath) {
-        if (bitmap == null) {
-            bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                loadCachedBitmap(element.sourcePath)
-            }
-            loading = false
-        }
-    }
+    val media = rememberMediaBitmap(element.sourcePath)
+    val bitmap = media.bitmap
+    val loading = media.loading
     val density = LocalDensity.current
 
     LaunchedEffect(bitmap) {
@@ -920,9 +950,10 @@ private fun ImageSlotContent(
                     .offset { IntOffset(frame.shiftX.roundToInt(), frame.shiftY.roundToInt()) },
                 contentScale = ContentScale.FillBounds,
             )
+            FilmEdgeOverlay(element.filmEdge, frame.edgeRect)
         }
         else -> {
-            Box(Modifier.fillMaxSize().background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (loading) CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
             }
         }
@@ -984,6 +1015,10 @@ private fun VideoSlotContent(
                     contentScale = ContentScale.Crop,
                 )
             }
+            FilmEdgeOverlay(
+                element.filmEdge,
+                Rect(0f, 0f, slotSize.width.toFloat(), slotSize.height.toFloat()),
+            )
             IconButton(
                 onClick = { playerActive = true },
                 modifier = Modifier.padding(4.dp).size(32.dp).pointerHoverIcon(PointerIcon.Hand),
@@ -1084,6 +1119,7 @@ private fun VideoSlotContent(
                     .graphicsLayer { rotationZ = rotation.toFloat() },
                 contentScale = ContentScale.FillBounds,
             )
+            FilmEdgeOverlay(element.filmEdge, frame.edgeRect)
         } else {
             // Before dimensions are ready, show fill with crop
             VideoPlayerSurface(
@@ -1445,6 +1481,8 @@ private data class MediaFrame(
     val drawHeight: Float,
     val shiftX: Float,
     val shiftY: Float,
+    /** Visible photo area (media rect clipped to the frame inset), in slot coordinates. */
+    val edgeRect: Rect = Rect.Zero,
 )
 
 private fun computeFrameInsetPx(
@@ -1498,7 +1536,7 @@ private fun computeMediaFrame(
     val centerShiftX = (lI - rI) * inset / 2f
     val centerShiftY = (tI - bI) * inset / 2f
 
-    return if (fitMode == MediaFitMode.FIT) {
+    val frame = if (fitMode == MediaFitMode.FIT) {
         val fitScale = minOf(availableWidth / safeMediaWidth, availableHeight / safeMediaHeight)
         MediaFrame(
             drawWidth = safeMediaWidth * fitScale,
@@ -1515,6 +1553,15 @@ private fun computeMediaFrame(
             shiftY = cropOffsetY + centerShiftY,
         )
     }
+    val mediaLeft = (safeSlotWidth - frame.drawWidth) / 2f + frame.shiftX
+    val mediaTop = (safeSlotHeight - frame.drawHeight) / 2f + frame.shiftY
+    val edgeRect = Rect(
+        left = max(mediaLeft, inset * lI),
+        top = max(mediaTop, inset * tI),
+        right = minOf(mediaLeft + frame.drawWidth, safeSlotWidth - inset * rI),
+        bottom = minOf(mediaTop + frame.drawHeight, safeSlotHeight - inset * bI),
+    )
+    return frame.copy(edgeRect = edgeRect)
 }
 
 private fun Long.toComposeColor(): Color = Color(toInt())
@@ -1618,6 +1665,35 @@ private val bitmapCache = java.util.concurrent.ConcurrentHashMap<String, ImageBi
 
 private fun loadCachedBitmap(path: String): ImageBitmap? {
     return bitmapCache.getOrPut(path) { loadImageBitmap(path) ?: return null }
+}
+
+/** Decodes [path] into the bitmap cache, so a newly added element renders without a loading state. */
+internal fun preloadMediaBitmap(path: String) {
+    loadCachedBitmap(path)
+}
+
+private fun BoxWithConstraintsScope.measuredSlotSize(): IntSize = IntSize(
+    if (constraints.hasBoundedWidth) constraints.maxWidth else 0,
+    if (constraints.hasBoundedHeight) constraints.maxHeight else 0,
+)
+
+private class MediaBitmap(initial: ImageBitmap?) {
+    var bitmap by mutableStateOf(initial)
+    var loading by mutableStateOf(initial == null)
+}
+
+/** Loads [path] through the bitmap cache, keeping the previous bitmap on screen while a new path loads. */
+@Composable
+private fun rememberMediaBitmap(path: String): MediaBitmap {
+    val media = remember { MediaBitmap(bitmapCache[path]) }
+    LaunchedEffect(path) {
+        val loaded = bitmapCache[path] ?: kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            loadCachedBitmap(path)
+        }
+        if (loaded != null) media.bitmap = loaded
+        media.loading = false
+    }
+    return media
 }
 
 // ── Drag-and-drop helper ────────────────────────────────────────────────
@@ -1738,99 +1814,97 @@ private fun PreviewSlotContent(
     stackCount: Int = 1,
     slideHasBgImage: Boolean = false,
 ) {
-    var bitmap by remember(element.sourcePath) { mutableStateOf(bitmapCache[element.sourcePath]) }
-    var loading by remember(element.sourcePath) { mutableStateOf(bitmap == null) }
-    var slotSize by remember { mutableStateOf(IntSize.Zero) }
-    val density = LocalDensity.current
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Measured up front so the first frame already draws at full size (no white flash)
+        val measuredSize = measuredSlotSize()
+        val media = rememberMediaBitmap(element.sourcePath)
+        val bitmap = media.bitmap
+        val loading = media.loading
+        var slotSize by remember { mutableStateOf(measuredSize) }
+        val density = LocalDensity.current
 
-    LaunchedEffect(element.sourcePath) {
-        if (bitmap == null) {
-            bitmap = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                loadCachedBitmap(element.sourcePath)
-            }
-            loading = false
-        }
-    }
 
-    val currentBitmap = bitmap
-    if (currentBitmap != null && slotSize.width > 0) {
-        val iw = currentBitmap.width.toFloat()
-        val ih = currentBitmap.height.toFloat()
-        val sw = slotSize.width.toFloat()
-        val sh = slotSize.height.toFloat()
+        val currentBitmap = bitmap
+        if (currentBitmap != null && slotSize.width > 0) {
+            val iw = currentBitmap.width.toFloat()
+            val ih = currentBitmap.height.toFloat()
+            val sw = slotSize.width.toFloat()
+            val sh = slotSize.height.toFloat()
 
-        val effectiveSlotWidth = sw * spanCount
-        val effectiveLogicalWidth = logicalSlotWidth * spanCount
-        val useCrop = spanCount == 1
-        val frame = computeMediaFrame(
-            slotWidth = effectiveSlotWidth,
-            slotHeight = sh,
-            mediaWidth = iw,
-            mediaHeight = ih,
-            fitMode = element.fitMode,
-            cropOffsetX = if (useCrop) element.cropOffsetX * sw else 0f,
-            cropOffsetY = if (useCrop) element.cropOffsetY * sh else 0f,
-            cropScale = if (useCrop) element.cropScale else 1f,
-            frameBorderPx = element.frameBorderPx,
-            logicalSlotWidth = effectiveLogicalWidth,
-            logicalSlotHeight = logicalSlotHeight,
-            drawTop = stackIndex == 0,
-            drawBottom = stackIndex == stackCount - 1,
-            drawLeft = spanIndex == 0,
-            drawRight = spanIndex == spanCount - 1,
-        )
-        val sliceShiftX = frame.shiftX + (effectiveSlotWidth - sw) / 2f - (spanIndex * sw)
-        val drawWDp = with(density) { frame.drawWidth.toDp() }
-        val drawHDp = with(density) { frame.drawHeight.toDp() }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(
-                    if (slideHasBgImage) Modifier
-                    else Modifier.background(element.backgroundColorArgb.toComposeColor())
-                )
-                .onSizeChanged { slotSize = it },
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                bitmap = currentBitmap,
-                contentDescription = null,
-                modifier = Modifier
-                    .requiredSize(drawWDp, drawHDp)
-                    .offset { IntOffset(sliceShiftX.roundToInt(), frame.shiftY.roundToInt()) },
-                contentScale = ContentScale.FillBounds,
+            val effectiveSlotWidth = sw * spanCount
+            val effectiveLogicalWidth = logicalSlotWidth * spanCount
+            val useCrop = spanCount == 1
+            val frame = computeMediaFrame(
+                slotWidth = effectiveSlotWidth,
+                slotHeight = sh,
+                mediaWidth = iw,
+                mediaHeight = ih,
+                fitMode = element.fitMode,
+                cropOffsetX = if (useCrop) element.cropOffsetX * sw else 0f,
+                cropOffsetY = if (useCrop) element.cropOffsetY * sh else 0f,
+                cropScale = if (useCrop) element.cropScale else 1f,
+                frameBorderPx = element.frameBorderPx,
+                logicalSlotWidth = effectiveLogicalWidth,
+                logicalSlotHeight = logicalSlotHeight,
+                drawTop = stackIndex == 0,
+                drawBottom = stackIndex == stackCount - 1,
+                drawLeft = spanIndex == 0,
+                drawRight = spanIndex == spanCount - 1,
             )
-            if (!slideHasBgImage) {
-                BorderMaskOverlay(
-                    insetPx = computeFrameInsetPx(
-                        slotWidth = effectiveSlotWidth,
-                        slotHeight = sh,
-                        logicalSlotWidth = effectiveLogicalWidth,
-                        logicalSlotHeight = logicalSlotHeight,
-                        frameBorderPx = element.frameBorderPx,
-                    ),
-                    color = element.backgroundColorArgb.toComposeColor(),
-                    drawTop = stackIndex == 0,
-                    drawBottom = stackIndex == stackCount - 1,
-                    drawLeft = spanIndex == 0,
-                    drawRight = spanIndex == spanCount - 1,
+            val sliceShiftX = frame.shiftX + (effectiveSlotWidth - sw) / 2f - (spanIndex * sw)
+            val drawWDp = with(density) { frame.drawWidth.toDp() }
+            val drawHDp = with(density) { frame.drawHeight.toDp() }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(
+                        if (slideHasBgImage) Modifier
+                        else Modifier.background(element.backgroundColorArgb.toComposeColor())
+                    )
+                    .onSizeChanged { slotSize = it },
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    bitmap = currentBitmap,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .requiredSize(drawWDp, drawHDp)
+                        .offset { IntOffset(sliceShiftX.roundToInt(), frame.shiftY.roundToInt()) },
+                    contentScale = ContentScale.FillBounds,
                 )
+                FilmEdgeOverlay(element.filmEdge, frame.edgeRect, offsetX = spanIndex * sw)
+                if (!slideHasBgImage) {
+                    BorderMaskOverlay(
+                        insetPx = computeFrameInsetPx(
+                            slotWidth = effectiveSlotWidth,
+                            slotHeight = sh,
+                            logicalSlotWidth = effectiveLogicalWidth,
+                            logicalSlotHeight = logicalSlotHeight,
+                            frameBorderPx = element.frameBorderPx,
+                        ),
+                        color = element.backgroundColorArgb.toComposeColor(),
+                        drawTop = stackIndex == 0,
+                        drawBottom = stackIndex == stackCount - 1,
+                        drawLeft = spanIndex == 0,
+                        drawRight = spanIndex == spanCount - 1,
+                    )
+                }
             }
-        }
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { slotSize = it }
-                .then(
-                    if (slideHasBgImage) Modifier
-                    else Modifier.background(element.backgroundColorArgb.toComposeColor())
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (currentBitmap == null && loading) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 1.5.dp)
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { slotSize = it }
+                    .then(
+                        if (slideHasBgImage) Modifier
+                        else Modifier.background(element.backgroundColorArgb.toComposeColor())
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (currentBitmap == null && loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 1.5.dp)
+                }
             }
         }
     }

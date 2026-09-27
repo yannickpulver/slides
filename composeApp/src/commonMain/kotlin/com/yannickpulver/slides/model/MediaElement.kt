@@ -18,6 +18,7 @@ data class MediaElement(
     val fitMode: MediaFitMode = MediaFitMode.FILL,
     val frameBorderPx: Float = 0f,
     val backgroundColorArgb: Long = 0xFFFFFFFF,
+    val filmEdge: FilmEdge? = null,
 )
 
 @Serializable

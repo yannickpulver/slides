@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -139,6 +141,7 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                     onGapChanged = viewModel::updateSlideGap,
                     onFitMode = { mode -> viewModel.updateSlideStyle(fitMode = mode) },
                     onBorderChanged = { border -> viewModel.updateSlideStyle(frameBorderPx = border) },
+                    onFilmEdge = viewModel::setFilmEdge,
                     onDeleteSlide = {
                         currentSlide?.id?.let { viewModel.removeSlide(it) }
                     },
@@ -160,6 +163,22 @@ fun EditorScreen(viewModel: EditorViewModel, onBack: (() -> Unit)? = null) {
                 onMoveSlide = viewModel::moveSlide,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+
+        if (state.importingCount > 0) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 64.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
+                Text("Importing…", style = MaterialTheme.typography.labelSmall)
+            }
         }
 
         val progress = state.exportProgress

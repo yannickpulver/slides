@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.yannickpulver.slides.model.AspectRatio
 import com.yannickpulver.slides.openInFinder
 import com.yannickpulver.slides.model.ElementBounds
+import com.yannickpulver.slides.model.FilmEdge
 import com.yannickpulver.slides.model.MediaElement
 import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.MediaType
@@ -24,6 +25,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class EditorState(
@@ -32,6 +35,7 @@ data class EditorState(
     val selectedElementId: String? = null,
     val projectFilePath: String? = null,
     val exportProgress: Float? = null, // null = idle, 0-1 = in progress
+    val importingCount: Int = 0,
 ) {
     val currentSlide: Slide?
         get() = selectedSlideId?.let { id -> project.slides.find { it.id == id } }
@@ -47,13 +51,21 @@ data class EditorState(
         }
 }
 
-class EditorViewModel : ViewModel() {
+/**
+ * @param importMedia copies a file into the project's media folder and returns the copy's path.
+ */
+class EditorViewModel(
+    private val importMedia: (projectId: String, sourcePath: String) -> String = { _, path -> path },
+) : ViewModel() {
 
     private val _state = MutableStateFlow(EditorState())
     val state: StateFlow<EditorState> = _state.asStateFlow()
 
     private val undoStack = ArrayDeque<EditorState>(MAX_UNDO)
     private val redoStack = ArrayDeque<EditorState>(MAX_UNDO)
+
+    // Keeps imports applying in call order (multi-file drops rely on slot order)
+    private val importMutex = Mutex()
 
     init {
         // Select first slide by default
@@ -122,13 +134,38 @@ class EditorViewModel : ViewModel() {
     fun addElementAtSlot(slotIndex: Int, sourcePath: String) {
         val ext = sourcePath.substringAfterLast('.', "").lowercase()
         val type = if (ext in listOf("mp4", "mov", "avi", "mkv", "webm")) MediaType.VIDEO else MediaType.IMAGE
-        addElementAtSlot(slotIndex, sourcePath, type)
+        val slideId = _state.value.currentSlide?.id
+        importThen(sourcePath) { path -> addElementAtSlot(slideId, slotIndex, path, type) }
     }
 
-    private fun addElementAtSlot(slotIndex: Int, sourcePath: String, type: MediaType) {
+    private fun importThen(sourcePath: String, apply: (String) -> Unit) {
+        val projectId = _state.value.project.id
+        _state.update { it.copy(importingCount = it.importingCount + 1) }
+        viewModelScope.launch {
+            try {
+                importMutex.withLock {
+                    val path = withContext(Dispatchers.IO) {
+                        val imported = try {
+                            importMedia(projectId, sourcePath)
+                        } catch (e: Exception) {
+                            println("Media import failed, linking original: ${e.message}")
+                            sourcePath
+                        }
+                        preloadMediaBitmap(imported)
+                        imported
+                    }
+                    apply(path)
+                }
+            } finally {
+                _state.update { it.copy(importingCount = it.importingCount - 1) }
+            }
+        }
+    }
+
+    private fun addElementAtSlot(slideId: String?, slotIndex: Int, sourcePath: String, type: MediaType) {
         pushUndo()
         _state.update { state ->
-            val slide = state.currentSlide ?: return@update state
+            val slide = state.project.slides.find { it.id == slideId } ?: state.currentSlide ?: return@update state
 
             // Check if this slot already has an element (using current template bounds)
             val currentBounds = boundsForTemplate(slide.template)
@@ -304,6 +341,32 @@ class EditorViewModel : ViewModel() {
             selectedSlideId = project.slides.firstOrNull()?.id,
             projectFilePath = filePath,
         )
+        localizeMedia(project)
+    }
+
+    /** Copies media still linked from outside the project folder (older projects) and rewrites the paths. */
+    private fun localizeMedia(project: Project) {
+        val paths = project.slides
+            .flatMap { s -> s.elements.map { it.sourcePath } + listOfNotNull(s.backgroundImagePath) }
+            .distinct()
+        viewModelScope.launch {
+            val moved = withContext(Dispatchers.IO) {
+                paths.associateWith { path ->
+                    try { importMedia(project.id, path) } catch (e: Exception) { path }
+                }
+            }.filter { (from, to) -> from != to }
+            if (moved.isEmpty()) return@launch
+            _state.update { state ->
+                if (state.project.id != project.id) return@update state
+                val slides = state.project.slides.map { s ->
+                    s.copy(
+                        backgroundImagePath = s.backgroundImagePath?.let { moved[it] ?: it },
+                        elements = s.elements.map { el -> el.copy(sourcePath = moved[el.sourcePath] ?: el.sourcePath) },
+                    )
+                }
+                state.copy(project = state.project.copy(slides = slides))
+            }
+        }
     }
 
     fun setProjectFilePath(path: String) {
@@ -555,13 +618,32 @@ class EditorViewModel : ViewModel() {
     }
 
     fun setBackgroundImage(path: String?) {
+        val slideId = _state.value.currentSlide?.id
+        if (path == null) applyBackgroundImage(slideId, null)
+        else importThen(path) { imported -> applyBackgroundImage(slideId, imported) }
+    }
+
+    private fun applyBackgroundImage(slideId: String?, path: String?) {
+        pushUndo()
+        _state.update { state ->
+            val slide = state.project.slides.find { it.id == slideId } ?: state.currentSlide ?: return@update state
+            val gid = slide.spanGroupId
+            val updatedSlides = state.project.slides.map { s ->
+                val matches = s.id == slide.id || (gid != null && s.spanGroupId == gid)
+                if (matches) s.copy(backgroundImagePath = path) else s
+            }
+            state.copy(project = state.project.copy(slides = updatedSlides))
+        }
+    }
+
+    fun setFilmEdge(edge: FilmEdge?) {
         pushUndo()
         _state.update { state ->
             val slide = state.currentSlide ?: return@update state
             val gid = slide.spanGroupId
             val updatedSlides = state.project.slides.map { s ->
                 val matches = s.id == slide.id || (gid != null && s.spanGroupId == gid)
-                if (matches) s.copy(backgroundImagePath = path) else s
+                if (matches) s.copy(elements = s.elements.map { it.copy(filmEdge = edge) }) else s
             }
             state.copy(project = state.project.copy(slides = updatedSlides))
         }

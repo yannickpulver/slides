@@ -5,7 +5,10 @@ import com.yannickpulver.slides.model.ProjectEntry
 import com.yannickpulver.slides.model.ProjectMeta
 import com.yannickpulver.slides.model.Slide
 import kotlinx.serialization.json.Json
+import java.awt.Desktop
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -50,9 +53,42 @@ class ProjectStore {
         saveIndex(entries)
     }
 
-    fun remove(id: String) {
-        val entries = listProjects().filter { it.id != id }
-        saveIndex(entries)
+    /** Removes the project from the index and moves its media folder (and app-managed .slides file) to the Trash. */
+    fun remove(entry: ProjectEntry) {
+        saveIndex(listProjects().filter { it.id != entry.id })
+        val file = File(entry.filePath)
+        listOf(File(projectsDir, entry.id), file.takeIf { it.parentFile == projectsDir })
+            .filterNotNull()
+            .filter { it.exists() }
+            .forEach { moveToTrash(it) }
+    }
+
+    /**
+     * Copies [sourcePath] into the project's media folder and returns the copy's path.
+     * Files already in the folder, missing files, and same-name same-size copies are reused.
+     */
+    fun importMedia(projectId: String, sourcePath: String): String {
+        val src = File(sourcePath)
+        val dir = File(projectsDir, "$projectId/media")
+        if (!src.isFile || src.canonicalFile.parentFile == dir.canonicalFile) return sourcePath
+        dir.mkdirs()
+        var target = File(dir, src.name)
+        var n = 1
+        while (target.exists()) {
+            if (target.length() == src.length()) return target.absolutePath
+            val ext = src.extension.let { if (it.isEmpty()) "" else ".$it" }
+            target = File(dir, "${src.nameWithoutExtension}-${n++}$ext")
+        }
+        Files.copy(src.toPath(), target.toPath(), StandardCopyOption.COPY_ATTRIBUTES)
+        return target.absolutePath
+    }
+
+    private fun moveToTrash(file: File) {
+        try {
+            Desktop.getDesktop().moveToTrash(file)
+        } catch (e: Exception) {
+            println("Move to trash failed for ${file.absolutePath}: ${e.message}")
+        }
     }
 
     fun saveProject(project: Project, filePath: String) {

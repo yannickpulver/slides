@@ -16,8 +16,9 @@ private const val MAX_CANVAS_PX = 2048
 private val thumbCacheDir: File =
     File(System.getProperty("user.home"), ".slides/thumbs").also { it.mkdirs() }
 
+// Keyed by name, not full path, so project-media copies (which keep mtime) reuse the original's thumbnail
 private fun thumbCacheFile(file: File): File {
-    val raw = "${file.absolutePath}|${file.lastModified()}|${file.length()}"
+    val raw = "${file.name}|${file.lastModified()}|${file.length()}"
     val hash = java.security.MessageDigest.getInstance("SHA-1")
         .digest(raw.toByteArray())
         .joinToString("") { "%02x".format(it) }

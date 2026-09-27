@@ -1,6 +1,7 @@
 package com.yannickpulver.slides.ui.editor
 
 import com.yannickpulver.slides.model.AspectRatio
+import com.yannickpulver.slides.model.FilmEdge
 import com.yannickpulver.slides.model.MediaElement
 import com.yannickpulver.slides.model.MediaFitMode
 import com.yannickpulver.slides.model.MediaType
@@ -10,6 +11,9 @@ import org.bytedeco.javacv.FFmpegFrameGrabber
 import org.bytedeco.javacv.FFmpegFrameRecorder
 import org.bytedeco.javacv.Java2DFrameConverter
 import java.awt.Graphics2D
+import java.io.ByteArrayInputStream
+import kotlinx.coroutines.runBlocking
+import slides.composeapp.generated.resources.Res
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.File
@@ -27,12 +31,16 @@ actual fun exportSlideAsImage(
     onProgress: (Float) -> Unit,
 ) {
     val hasVideo = slide.elements.any { it.type == MediaType.VIDEO }
-    val outputFile = if (hasVideo) {
-        exportSlideAsVideo(slide, aspectRatio, outputDir, scaleFactor, slideLabel, onProgress)
-    } else {
-        val f = exportSlideAsPng(slide, aspectRatio, outputDir, scaleFactor, slideLabel)
-        onProgress(1f)
-        f
+    val outputFile = try {
+        if (hasVideo) {
+            exportSlideAsVideo(slide, aspectRatio, outputDir, scaleFactor, slideLabel, onProgress)
+        } else {
+            val f = exportSlideAsPng(slide, aspectRatio, outputDir, scaleFactor, slideLabel)
+            onProgress(1f)
+            f
+        }
+    } finally {
+        filmEdgeCache.clear()
     }
     if (lastModifiedMillis != null) outputFile.setLastModified(lastModifiedMillis)
 }
@@ -369,6 +377,51 @@ private fun drawElementToGraphics(
             spanIndex = spanIndex,
             spanCount = spanCount,
         )
+    }
+
+    val filmEdge = element.filmEdge ?: return
+    val inset = computeFrameInsetPx(
+        slotWidth = effectiveSlotW,
+        slotHeight = slotH.toFloat(),
+        logicalSlotWidth = effectiveLogicalW,
+        logicalSlotHeight = logicalCanvasHeight * element.bounds.height,
+        frameBorderPx = element.frameBorderPx,
+    )
+    // Visible photo area in virtual (span-wide) slot coordinates
+    val mediaLeft = (effectiveSlotW - frame.drawWidth) / 2f + frame.shiftX
+    val mediaTop = (slotH - frame.drawHeight) / 2f + frame.shiftY
+    val edgeLeft = max(mediaLeft, inset)
+    val edgeTop = max(mediaTop, inset)
+    val edgeW = (minOf(mediaLeft + frame.drawWidth, effectiveSlotW - inset) - edgeLeft).roundToInt()
+    val edgeH = (minOf(mediaTop + frame.drawHeight, slotH - inset) - edgeTop).roundToInt()
+    if (edgeW <= 0 || edgeH <= 0) return
+    val mask = loadFilmEdge(filmEdge, landscape = edgeW > edgeH, width = edgeW, height = edgeH) ?: return
+    g2d.clipRect(slotX, slotY, slotW, slotH)
+    g2d.drawImage(
+        mask,
+        (slotX + edgeLeft - spanIndex * slotW).roundToInt(),
+        (slotY + edgeTop).roundToInt(),
+        edgeW,
+        edgeH,
+        null,
+    )
+    g2d.clip = prevClip
+}
+
+/** Scaled film-edge masks, keyed by resource path and size. Cleared after each slide export. */
+private val filmEdgeCache = java.util.concurrent.ConcurrentHashMap<String, BufferedImage>()
+
+private fun loadFilmEdge(edge: FilmEdge, landscape: Boolean, width: Int, height: Int): BufferedImage? {
+    val path = edge.resourcePath(landscape = landscape, preview = false)
+    return filmEdgeCache.getOrPut("$path@${width}x$height") {
+        try {
+            val bytes = runBlocking { Res.readBytes(path) }
+            val full = ImageIO.read(ByteArrayInputStream(bytes)) ?: return null
+            progressiveScale(full, width, height)
+        } catch (e: Exception) {
+            println("Film edge load failed: ${e.message}")
+            return null
+        }
     }
 }
 

@@ -31,7 +31,7 @@ fun main() {
     FileKit.init(appId = "com.yannickpulver.slides")
     application {
         val projectStore = remember { ProjectStore() }
-        val viewModel = remember { EditorViewModel() }
+        val viewModel = remember { EditorViewModel(importMedia = projectStore::importMedia) }
         var currentScreen by remember { mutableStateOf(Screen.ProjectPicker) }
         var projects by remember { mutableStateOf(projectStore.listProjects()) }
         var projectMetas by remember {
@@ -150,7 +150,7 @@ fun main() {
                 },
                 onOpenProject = ::openProject,
                 onDeleteProject = { entry ->
-                    projectStore.remove(entry.id)
+                    projectStore.remove(entry)
                     refreshProjects()
                 },
                 currentScreen = currentScreen,
