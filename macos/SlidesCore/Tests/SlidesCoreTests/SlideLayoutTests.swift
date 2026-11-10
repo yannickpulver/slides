@@ -6,27 +6,27 @@ struct SlideLayoutTests {
     @Test func stackedSlotsShareHeightMinusGaps() {
         var slide = Slide()
         slide.choose(.three)
-        slide.style.gap = 30
+        slide.style.gap = 32
         let slots = SlideLayout(slide: slide, format: .portrait4x3).slots
         #expect(slots.count == 3)
-        #expect(slots[0].height == 460)
-        #expect(slots[1].minY == 490)
-        #expect(slots[2].maxY == 1440)
+        #expect(slots[0].height == 320)
+        #expect(slots[1].minY == 352)
+        #expect(slots[2].maxY == 1024)
     }
 
     @Test func borderShrinksVisibleArea() {
         var slide = Slide()
         slide.style.border = 40
         let area = SlideLayout(slide: slide, format: .portrait4x3).visibleArea(slot: 0)
-        #expect(area == CGRect(x: 40, y: 40, width: 1000, height: 1360))
+        #expect(area == CGRect(x: 40, y: 40, width: 688, height: 944))
     }
 
     @Test func panoramaCanvasCoversAllParts() {
         var slide = Slide()
         slide.choose(.single, span: 3)
         let layout = SlideLayout(slide: slide, format: .portrait4x3)
-        #expect(layout.canvas.width == 3240)
-        #expect(layout.part(2) == CGRect(x: 2160, y: 0, width: 1080, height: 1440))
+        #expect(layout.canvas.width == 2304)
+        #expect(layout.part(2) == CGRect(x: 1536, y: 0, width: 768, height: 1024))
     }
 
     @Test func fillCoversAndFullFits() {
@@ -70,7 +70,7 @@ struct SlideLayoutTests {
         slide.style.border = 40
         let layout = SlideLayout(slide: slide, format: .portrait4x3)
         let rect = layout.filmEdgeRect(slot: 0, mediaSize: CGSize(width: 2000, height: 1000), crop: Crop())
-        #expect(rect.width == 1000)
-        #expect(rect.height == 500)
+        #expect(rect.width == 688)
+        #expect(rect.height == 344)
     }
 }

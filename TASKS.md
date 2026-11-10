@@ -46,6 +46,9 @@ No migration of old projects.
 - [x] System font and appearance (light/dark), system accent color
 - [x] Rename via File › Rename Project…, Add Photos ⌘O, Export ⌘E
 
+## Export size
+- [x] Frames are 768 × 1024 (4:3) and 576 × 1024 (16:9) at 1x; export offers 2× (default, 1536 × 2048) and 3×
+
 ## 7. Switch over
 - [x] Rendering checked in the running app (editor, start screen, export contact sheet)
 - [ ] Click through drag & drop, pan/zoom, reorder, undo, video play by hand (not automated)

@@ -16,18 +16,20 @@ public struct Project: Codable, Equatable, Sendable, Identifiable {
     public var frameCount: Int { slides.reduce(0) { $0 + $1.span } }
 }
 
-/// Size of one exported frame, in pixels at 1x.
+/// Size of one frame at 1x. Exports run at 2x or more: 2x of 4:3 is 1536 × 2048,
+/// the largest photo Instagram keeps.
 public enum Format: String, Codable, CaseIterable, Sendable {
     case portrait4x3
     case portrait16x9
 
-    public var width: Double { 1080 }
-    public var height: Double {
+    public var width: Double {
         switch self {
-        case .portrait4x3: 1440
-        case .portrait16x9: 1920
+        case .portrait4x3: 768
+        case .portrait16x9: 576
         }
     }
+
+    public var height: Double { 1024 }
 
     public var label: String {
         switch self {
@@ -109,9 +111,9 @@ public enum Fit: String, Codable, Sendable {
 }
 
 public struct SlideStyle: Codable, Equatable, Sendable {
-    public static let maxBorder = 240.0
-    public static let maxGap = 120.0
-    public static let maxBlur = 100.0
+    public static let maxBorder = 170.0
+    public static let maxGap = 85.0
+    public static let maxBlur = 70.0
 
     public var fit: Fit = .fill
     /// Inset around each photo, in 1x pixels.

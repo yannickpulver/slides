@@ -17,15 +17,15 @@ struct RenderTests {
             background: nil
         )
         let image = renderer.render(part: 0)!
-        #expect(image.width == 1080 && image.height == 1440)
+        #expect(image.width == 768 && image.height == 1024)
         #expect(image.pixel(x: 50, y: 50) == (0, 0, 0))
-        #expect(image.pixel(x: 540, y: 720) == (255, 0, 0))
+        #expect(image.pixel(x: 384, y: 512) == (255, 0, 0))
     }
 
     @Test func scaleMultipliesPixels() {
         let renderer = SlideRenderer(layout: SlideLayout(slide: Slide(), format: .portrait16x9), scale: 2, images: [:], background: nil)
         let image = renderer.render(part: 0)!
-        #expect(image.width == 2160 && image.height == 3840)
+        #expect(image.width == 1152 && image.height == 2048)
         #expect(image.pixel(x: 10, y: 10) == (255, 255, 255))
     }
 
@@ -33,7 +33,7 @@ struct RenderTests {
         var slide = Slide()
         slide.choose(.single, span: 2)
         slide.place([Media(file: "halves", kind: .image)], at: nil)
-        // 2:1 at 4:3 frames is 2160 × 1440 → 3:2 canvas; photo 3:2 so it fits exactly.
+        // Two 4:3 frames make a 1536 × 1024 (3:2) canvas; the 3:2 photo fits exactly.
         let renderer = SlideRenderer(
             layout: SlideLayout(slide: slide, format: .portrait4x3),
             scale: 1,
@@ -42,8 +42,8 @@ struct RenderTests {
         )
         let left = renderer.render(part: 0)!
         let right = renderer.render(part: 1)!
-        #expect(left.pixel(x: 540, y: 720) == (255, 0, 0))
-        #expect(right.pixel(x: 540, y: 720) == (0, 0, 255))
+        #expect(left.pixel(x: 384, y: 512) == (255, 0, 0))
+        #expect(right.pixel(x: 384, y: 512) == (0, 0, 255))
     }
 
     @Test func backgroundImageBlursWithoutLosingSize() {
@@ -58,8 +58,8 @@ struct RenderTests {
         )
         let image = renderer.render(part: 0)!
         // Far from the seam stays pure, the seam blends.
-        #expect(image.pixel(x: 20, y: 720).r > 240)
-        let seam = image.pixel(x: 540, y: 720)
+        #expect(image.pixel(x: 10, y: 512).r > 240)
+        let seam = image.pixel(x: 384, y: 512)
         #expect(seam.r > 60 && seam.b > 60)
     }
 
@@ -107,7 +107,7 @@ struct ExportTests {
         let dates = urls.map { (try? $0.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast }
         #expect(dates[0] < dates[1] && dates[1] < dates[2])
         let exported = try #require(MediaLoader.image(at: urls[0]))
-        #expect(exported.pixel(x: 540, y: 720) == (0, 0, 0))
+        #expect(exported.pixel(x: 384, y: 512) == (0, 0, 0))
     }
 
     @Test(.timeLimit(.minutes(1))) func exportWritesVideoOfShortestClip() async throws {
@@ -128,9 +128,9 @@ struct ExportTests {
         let duration = try await asset.load(.duration).seconds
         #expect(abs(duration - 1) < 0.1)
         let track = try #require(try await asset.loadTracks(withMediaType: .video).first)
-        #expect(try await track.load(.naturalSize) == CGSize(width: 2160, height: 2880))
+        #expect(try await track.load(.naturalSize) == CGSize(width: 1536, height: 2048))
         let frame = try #require(await MediaLoader.videoPoster(at: urls[0]))
-        let top = frame.pixel(x: 1080, y: 600)
+        let top = frame.pixel(x: 768, y: 500)
         #expect(top.g > 150 && top.r < 60)
     }
 }

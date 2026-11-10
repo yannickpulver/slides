@@ -244,14 +244,18 @@ private struct ExportCard: View {
 
     var body: some View {
         Card(title: "Export", icon: "download") {
-            Row(label: "Scale") {
-                Picker("Scale", selection: $editor.exportScale) {
-                    ForEach([1, 2, 3], id: \.self) { Text("\($0)×").tag($0) }
+            Row(label: "Size") {
+                Picker("Size", selection: $editor.exportScale) {
+                    // 2× is Instagram's largest size; smaller exports only lose detail.
+                    Text("2×").tag(2)
+                    Text("3×").tag(3)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
-            Text("\(Int(editor.project.format.width) * editor.exportScale) × \(Int(editor.project.format.height) * editor.exportScale) px · PNG, or MP4 for slides with video")
+            let width = Int(editor.project.format.width) * editor.exportScale
+            let height = Int(editor.project.format.height) * editor.exportScale
+            Text("\(String(width)) × \(String(height)) px" + (editor.exportScale == 2 ? " · largest size Instagram keeps" : " · larger than Instagram keeps"))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
