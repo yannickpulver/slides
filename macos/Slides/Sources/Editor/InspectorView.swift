@@ -91,12 +91,12 @@ private struct LayoutTile<Icon: View>: View {
                 .padding(7)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
-                .background(selected ? Color.accentColor.opacity(0.15) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 1.5))
+                .background(Color.primary.opacity(selected ? 0.1 : 0.05), in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(selected ? Color.primary.opacity(0.8) : .clear, lineWidth: 1.5))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(selected ? Color.accentColor : .secondary)
+        .foregroundStyle(Color.primary.opacity(selected ? 0.9 : 0.4))
         .help(help)
     }
 }
@@ -106,7 +106,7 @@ private struct StackIcon: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            ForEach(0..<count, id: \.self) { _ in RoundedRectangle(cornerRadius: 1.5).fill(.tint.opacity(0.6)) }
+            ForEach(0..<count, id: \.self) { _ in RoundedRectangle(cornerRadius: 1.5).fill(.foreground) }
         }
         .aspectRatio(3.0 / 4.0, contentMode: .fit)
     }
@@ -117,7 +117,7 @@ private struct PanoramaIcon: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(0..<count, id: \.self) { _ in RoundedRectangle(cornerRadius: 1.5).fill(.tint.opacity(0.6)) }
+            ForEach(0..<count, id: \.self) { _ in RoundedRectangle(cornerRadius: 1.5).fill(.foreground) }
         }
         .frame(height: 18)
     }
