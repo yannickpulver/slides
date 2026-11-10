@@ -59,4 +59,4 @@ No migration of old projects.
 - [x] Delete Kotlin, Conveyor, iosApp, fastlane leftovers
 - [x] README, VERSION 2.0.0, homebrew workflow
 - [x] `SPARKLE_PRIVATE_KEY` secret on the repo
-- [ ] New `screenshot.png` for the README
+- [x] New `screenshot.png` for the README
