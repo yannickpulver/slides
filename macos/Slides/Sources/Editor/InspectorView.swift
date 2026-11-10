@@ -34,7 +34,7 @@ private struct FormatCard: View {
     var body: some View {
         Card(title: "Format", icon: "aspect-ratio") {
             Row(label: "Ratio") {
-                Picker("Format", selection: Binding(get: { editor.project.format }, set: editor.setFormat)) {
+                Picker("Format", selection: Binding(get: { editor.project.format }, set: { editor.setFormat($0) })) {
                     ForEach(Format.allCases, id: \.self) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -172,10 +172,10 @@ private struct BackgroundCard: View {
                 .controlSize(.small)
             }
             if slide.style.backgroundImage != nil {
-                PixelSlider(label: "Blur", value: slide.style.blur, range: 0...SlideStyle.maxBlur, onChange: editor.setBlur)
+                PixelSlider(label: "Blur", value: slide.style.blur, range: 0...SlideStyle.maxBlur, onChange: { editor.setBlur($0) })
             }
             if slide.layout.slotCount > 1 {
-                PixelSlider(label: "Gap", value: slide.style.gap, range: 0...SlideStyle.maxGap, onChange: editor.setGap)
+                PixelSlider(label: "Gap", value: slide.style.gap, range: 0...SlideStyle.maxGap, onChange: { editor.setGap($0) })
             }
         }
     }
@@ -213,17 +213,17 @@ private struct PhotoCard: View {
                 .help("Add photos or videos (⌘O)")
         } content: {
             Row(label: "Fit") {
-                Picker("Fit", selection: Binding(get: { slide.style.fit }, set: editor.setFit)) {
+                Picker("Fit", selection: Binding(get: { slide.style.fit }, set: { editor.setFit($0) })) {
                     Text("Fill").tag(Fit.fill)
                     Text("Full").tag(Fit.full)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
-            PixelSlider(label: "Border", value: slide.style.border, range: 0...SlideStyle.maxBorder, onChange: editor.setBorder)
+            PixelSlider(label: "Border", value: slide.style.border, range: 0...SlideStyle.maxBorder, onChange: { editor.setBorder($0) })
             VStack(alignment: .leading, spacing: 6) {
                 Text("Film edge").foregroundStyle(.secondary)
-                Picker("Film edge", selection: Binding(get: { slide.style.filmEdge }, set: editor.setFilmEdge)) {
+                Picker("Film edge", selection: Binding(get: { slide.style.filmEdge }, set: { editor.setFilmEdge($0) })) {
                     Text("None").tag(FilmEdge?.none)
                     ForEach(FilmEdge.allCases, id: \.self) { Text($0.name).tag(FilmEdge?.some($0)) }
                 }
