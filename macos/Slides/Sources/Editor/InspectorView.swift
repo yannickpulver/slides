@@ -239,30 +239,32 @@ private struct PhotoCard: View {
 // MARK: - Export
 
 private struct ExportCard: View {
-    let editor: EditorModel
+    @Bindable var editor: EditorModel
 
     var body: some View {
         Card(title: "Export", icon: "download") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Size").foregroundStyle(.secondary)
+                Picker("Size", selection: $editor.exportSize) {
+                    ForEach(EditorModel.ExportSize.allCases, id: \.self) { Text($0.name).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
+                Text(editor.exportSize == .instagram
+                     ? "\(editor.pixelSize(.instagram)) · the largest Instagram keeps"
+                     : "\(editor.pixelSize(.large)) · for print or other apps")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Button { editor.exportWithPanel() } label: {
                 Text("Export \(editor.project.frameCount) \(editor.project.frameCount == 1 ? "Slide" : "Slides")…")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            HStack {
-                Text("\(editor.pixelSize(.instagram)), the largest size Instagram keeps")
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Menu("Other Size") {
-                    ForEach(EditorModel.ExportSize.allCases.filter { $0 != .instagram }, id: \.self) { size in
-                        Button("\(size.name) · \(editor.pixelSize(size))…") { editor.exportWithPanel(size) }
-                    }
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-            }
-            .font(.callout)
-            .foregroundStyle(.secondary)
         }
     }
 }

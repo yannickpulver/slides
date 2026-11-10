@@ -47,7 +47,7 @@ No migration of old projects.
 - [x] Rename via File › Rename Project…, Add Photos ⌘O, Export ⌘E
 
 ## Export size
-- [x] Frames are 768 × 1024 (4:3) and 576 × 1024 (16:9) at 1x; Export writes 2× (1536 × 2048), "Other Size" offers Large (3×)
+- [x] Frames are 768 × 1024 (4:3) and 576 × 1024 (16:9) at 1x; Export size switch: Instagram (2×, 1536 × 2048, default) or Large (3×)
 
 ## Film edges
 - [x] Only the thin gate masks from Figma ("Film mask/thin"): white and black; landscape = rotated portrait

@@ -16,6 +16,7 @@ final class EditorModel {
     private(set) var exportProgress: Double?
     var exportError: String?
     var renaming = false
+    var exportSize = ExportSize.instagram
 
     @ObservationIgnored weak var undoManager: UndoManager?
     @ObservationIgnored private var lastEdit: (key: String, time: Date)?
@@ -222,8 +223,8 @@ final class EditorModel {
         return "\(String(Int(project.format.width * scale))) × \(String(Int(project.format.height * scale))) px"
     }
 
-    func exportWithPanel(_ size: ExportSize = .instagram) {
-        if let folder = FilePanel.pickFolder() { export(to: folder, size: size) }
+    func exportWithPanel() {
+        if let folder = FilePanel.pickFolder() { export(to: folder, size: exportSize) }
     }
 
     func pickMediaForCurrentSlide() {
