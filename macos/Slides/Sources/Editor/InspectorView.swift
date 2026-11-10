@@ -246,18 +246,14 @@ private struct ExportCard: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Size").foregroundStyle(.secondary)
                 Picker("Size", selection: $editor.exportSize) {
-                    ForEach(EditorModel.ExportSize.allCases, id: \.self) { Text($0.name).tag($0) }
+                    ForEach(EditorModel.ExportSize.allCases, id: \.self) { size in
+                        Text("\(size.name) · \(editor.pixelSize(size))").tag(size)
+                    }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .labelsHidden()
                 .buttonSizing(.flexible)
                 .frame(maxWidth: .infinity)
-                Text(editor.exportSize == .instagram
-                     ? "\(editor.pixelSize(.instagram)) · the largest Instagram keeps"
-                     : "\(editor.pixelSize(.large)) · for print or other apps")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             Button { editor.exportWithPanel() } label: {
                 Text("Export \(editor.project.frameCount) \(editor.project.frameCount == 1 ? "Slide" : "Slides")…")
