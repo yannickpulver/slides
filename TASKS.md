@@ -41,7 +41,7 @@ No migration of old projects.
 ## Native UI (like Print Lab)
 - [x] Horizontal filmstrip below the canvas (drag to reorder, drop files, context menu)
 - [x] Selected slide centered on the canvas, inspector with cards (Tabler icons)
-- [x] Native toolbar: back, format picker, export, inspector toggle; title + subtitle
+- [x] Native toolbar: back, export, inspector toggle; title + subtitle. Format (4:3 / 16:9) as the first inspector card
 - [x] Start screen: toolbar search, sort menu, new; ContentUnavailableView
 - [x] System font and appearance (light/dark), system accent color
 - [x] Rename via File › Rename Project…, Add Photos ⌘O, Export ⌘E

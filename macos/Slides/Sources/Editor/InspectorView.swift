@@ -11,12 +11,35 @@ struct InspectorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
+                FormatCard(editor: editor)
                 LayoutCard(editor: editor, slide: slide)
                 BackgroundCard(editor: editor, slide: slide)
                 PhotoCard(editor: editor, slide: slide)
                 ExportCard(editor: editor)
             }
             .padding(16)
+        }
+    }
+}
+
+// MARK: - Format
+
+/// Applies to every slide of the project.
+private struct FormatCard: View {
+    let editor: EditorModel
+
+    var body: some View {
+        Card(title: "Format", icon: "aspect-ratio") {
+            Row(label: "Ratio") {
+                Picker("Format", selection: Binding(get: { editor.project.format }, set: editor.setFormat)) {
+                    ForEach(Format.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Text("Applies to all slides")
+                .font(.callout)
+                .foregroundStyle(.secondary)
         }
     }
 }

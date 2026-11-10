@@ -28,13 +28,6 @@ struct EditorView: View {
                 }
                 .help("Back to projects")
             }
-            ToolbarItem(placement: .principal) {
-                Picker("Format", selection: Binding(get: { editor.project.format }, set: editor.setFormat)) {
-                    ForEach(Format.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .help("Slide format")
-            }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button { editor.exportWithPanel() } label: {
                     Label { Text("Export") } icon: { TablerIcon("download", size: 18) }
