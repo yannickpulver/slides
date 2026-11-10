@@ -16,6 +16,7 @@ final class EditorModel {
     private(set) var exportProgress: Double?
     var exportError: String?
     var exportScale = 2
+    var renaming = false
 
     @ObservationIgnored weak var undoManager: UndoManager?
     @ObservationIgnored private var lastEdit: (key: String, time: Date)?
@@ -203,6 +204,15 @@ final class EditorModel {
     }
 
     // MARK: - Export
+
+    func exportWithPanel() {
+        if let folder = FilePanel.pickFolder() { export(to: folder) }
+    }
+
+    func pickMediaForCurrentSlide() {
+        let urls = FilePanel.pickMedia()
+        if !urls.isEmpty { drop(urls, slot: nil, in: selectedSlideID) }
+    }
 
     func export(to folder: URL) {
         guard exportProgress == nil else { return }

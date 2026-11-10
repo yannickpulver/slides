@@ -119,9 +119,8 @@ struct SlotView: View {
 
     private var empty: some View {
         ZStack {
-            Rectangle().fill(slide.style.backgroundImage == nil ? Theme.emptySlot : .clear)
-            Image(systemName: "plus")
-                .font(.system(size: max(min(slotRect.height * 0.08, 28), 12), weight: .light))
+            Rectangle().fill(slide.style.backgroundImage == nil ? Color(white: 0.96) : .clear)
+            TablerIcon("photo-plus", size: max(min(slotRect.height * 0.1, 36), 14))
                 .foregroundStyle(.gray.opacity(0.7))
         }
         .frame(width: slotRect.width, height: slotRect.height)
@@ -265,26 +264,25 @@ private struct SlotButtons: View {
     var body: some View {
         HStack(spacing: 6) {
             if isVideo {
-                RoundButton(symbol: playing ? "pause.fill" : "play.fill", help: playing ? "Pause" : "Play", action: onPlay)
+                RoundButton(icon: playing ? "player-pause" : "player-play", help: playing ? "Pause" : "Play", action: onPlay)
             }
-            RoundButton(symbol: "arrow.triangle.2.circlepath", help: "Replace", action: onReplace)
-            RoundButton(symbol: "xmark", help: "Remove", action: onRemove)
+            RoundButton(icon: "refresh", help: "Replace", action: onReplace)
+            RoundButton(icon: "x", help: "Remove", action: onRemove)
         }
         .padding(8)
     }
 }
 
 struct RoundButton: View {
-    let symbol: String
+    let icon: String
     let help: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 10, weight: .semibold))
+            TablerIcon(icon, size: 13)
                 .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
+                .frame(width: 26, height: 26)
                 .background(.black.opacity(0.55), in: Circle())
         }
         .buttonStyle(.plain)

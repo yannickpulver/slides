@@ -7,20 +7,13 @@ struct SlidesApp: App {
     @State private var app = AppModel()
     @State private var updater = Updater()
 
-    init() {
-        Theme.registerFonts()
-    }
-
     var body: some Scene {
         Window("Slides", id: "main") {
             RootView(app: app)
-                .frame(minWidth: 900, minHeight: 600)
-                .preferredColorScheme(.dark)
-                .font(Theme.font(13))
+                .frame(minWidth: 960, minHeight: 620)
                 .onAppear { delegate.app = app }
         }
-        .defaultSize(width: 1200, height: 800)
-        .windowStyle(.titleBar)
+        .defaultSize(width: 1280, height: 820)
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { updater.checkForUpdates() }
@@ -34,18 +27,29 @@ struct SlidesApp: App {
                     .disabled(app.editor == nil)
             }
             CommandGroup(after: .saveItem) {
-                Button("Save") { app.editor?.saveNow() }
-                    .keyboardShortcut("s")
-                    .disabled(app.editor == nil)
+                Group {
+                    Button("Save") { app.editor?.saveNow() }
+                        .keyboardShortcut("s")
+                    Button("Rename Project…") { app.editor?.renaming = true }
+                    Button("Export…") { app.editor?.exportWithPanel() }
+                        .keyboardShortcut("e")
+                }
+                .disabled(app.editor == nil)
             }
             CommandMenu("Slide") {
                 Group {
                     Button("Add Slide") { app.editor?.addSlide() }
                         .keyboardShortcut("n", modifiers: [.command, .shift])
+                    Button("Add Photos…") { app.editor?.pickMediaForCurrentSlide() }
+                        .keyboardShortcut("o")
+                    Divider()
                     Button("Previous Slide") { app.editor?.selectPrevious() }
                         .keyboardShortcut("[")
                     Button("Next Slide") { app.editor?.selectNext() }
                         .keyboardShortcut("]")
+                    Divider()
+                    Button("Delete Slide") { app.editor.map { $0.removeSlide($0.selectedSlideID) } }
+                        .disabled((app.editor?.project.slides.count ?? 0) < 2)
                 }
                 .disabled(app.editor == nil)
             }

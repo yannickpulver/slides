@@ -38,6 +38,14 @@ No migration of old projects.
 - [x] Poster + play/pause in slot
 - [x] MP4 export (30 fps, audio of first video, shortest length, Rec. 709)
 
+## Native UI (like Print Lab)
+- [x] NavigationSplitView: slide list sidebar (drag to reorder, drop files, context menu, ⌫ deletes)
+- [x] Selected slide centered on the canvas, inspector with cards (Tabler icons)
+- [x] Native toolbar: back, format picker, export, inspector toggle; title + subtitle
+- [x] Start screen: toolbar search, sort menu, new; ContentUnavailableView
+- [x] System font and appearance (light/dark), system accent color
+- [x] Rename via File › Rename Project…, Add Photos ⌘O, Export ⌘E
+
 ## 7. Switch over
 - [x] Rendering checked in the running app (editor, start screen, export contact sheet)
 - [ ] Click through drag & drop, pan/zoom, reorder, undo, video play by hand (not automated)

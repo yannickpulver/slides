@@ -8,14 +8,14 @@ struct ProjectPickerView: View {
     @State private var sort = Sort.recent
 
     enum Sort: String, CaseIterable {
-        case recent = "Recent"
-        case oldest = "Oldest"
+        case recent = "Last Modified"
+        case oldest = "Oldest First"
         case name = "Name"
     }
 
     private var filtered: [ProjectSummary] {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        let base = q.isEmpty ? app.projects : app.projects.filter { $0.name.lowercased().contains(q) }
+        let q = query.trimmingCharacters(in: .whitespaces)
+        let base = q.isEmpty ? app.projects : app.projects.filter { $0.name.localizedCaseInsensitiveContains(q) }
         return switch sort {
         case .recent: base.sorted { $0.modified > $1.modified }
         case .oldest: base.sorted { $0.modified < $1.modified }
@@ -24,116 +24,55 @@ struct ProjectPickerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 196, maximum: 260), spacing: 24, alignment: .top)], alignment: .leading, spacing: 24) {
-                    NewProjectCard(action: app.newProject)
-                    ForEach(filtered) { project in
-                        ProjectCard(
-                            project: project,
-                            onOpen: { app.open(project) },
-                            onDelete: { app.delete(project) },
-                            onReveal: { app.revealInFinder(project) }
-                        )
-                    }
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 28, alignment: .top)], alignment: .leading, spacing: 28) {
+                ForEach(filtered) { project in
+                    ProjectCard(
+                        project: project,
+                        onOpen: { app.open(project) },
+                        onDelete: { app.delete(project) },
+                        onReveal: { app.revealInFinder(project) }
+                    )
                 }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 24)
             }
-            footer
+            .padding(28)
         }
-        .background(Theme.background)
+        .overlay {
+            if app.projects.isEmpty {
+                ContentUnavailableView {
+                    Label { Text("No Projects") } icon: { TablerIcon("photo", size: 40) }
+                } description: {
+                    Text("A project is one carousel of photos and videos.")
+                } actions: {
+                    Button("New Project", action: app.newProject)
+                        .buttonStyle(.borderedProminent)
+                }
+            } else if filtered.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+        .background(Color(nsColor: .underPageBackgroundColor))
+        .navigationTitle("Slides")
+        .navigationSubtitle("\(app.projects.count) \(app.projects.count == 1 ? "project" : "projects")")
+        .searchable(text: $query, placement: .toolbar, prompt: "Search projects")
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Menu {
+                    Picker("Sort By", selection: $sort) {
+                        ForEach(Sort.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Label { Text("Sort") } icon: { TablerIcon("arrows-sort", size: 18) }
+                }
+                .help("Sort projects")
+                Button(action: app.newProject) {
+                    Label { Text("New Project") } icon: { TablerIcon("plus", size: 18) }
+                }
+                .help("New project (⌘N)")
+            }
+        }
         .onAppear(perform: app.refresh)
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            Text("Slides").font(Theme.font(18, .semibold))
-            Text("\(app.projects.count)")
-                .font(Theme.mono(11))
-                .foregroundStyle(Theme.textMuted)
-            Spacer()
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(Theme.textMuted)
-                TextField("Search", text: $query)
-                    .textFieldStyle(.plain)
-                    .font(Theme.font(12))
-                if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Theme.textMuted)
-                }
-            }
-            .padding(.horizontal, 10)
-            .frame(width: 220, height: 28)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.outline, lineWidth: 0.5))
-
-            Menu {
-                ForEach(Sort.allCases, id: \.self) { option in
-                    Button(option.rawValue) { sort = option }
-                }
-            } label: {
-                Text("SORT  \(sort.rawValue)").font(Theme.mono(10))
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-
-            Button(action: app.newProject) {
-                Label("New", systemImage: "plus")
-                    .font(Theme.font(12, .medium))
-                    .foregroundStyle(Theme.background)
-                    .padding(.horizontal, 12)
-                    .frame(height: 28)
-                    .background(Theme.text, in: RoundedRectangle(cornerRadius: 6))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 32)
-        .frame(height: 64)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.outlineSoft).frame(height: 0.5) }
-    }
-
-    private var footer: some View {
-        HStack {
-            Text("\(app.projects.count) \(app.projects.count == 1 ? "project" : "projects")")
-            Spacer()
-            Text("v\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
-        }
-        .font(Theme.mono(10))
-        .foregroundStyle(Theme.textMuted.opacity(0.7))
-        .padding(.horizontal, 32)
-        .frame(height: 36)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.outlineSoft).frame(height: 0.5) }
-    }
-}
-
-private struct NewProjectCard: View {
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 8) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Theme.surface.opacity(hovering ? 0.8 : 0.4))
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.outline, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
-                    .overlay {
-                        VStack(spacing: 8) {
-                            Image(systemName: "plus").font(.system(size: 22, weight: .light))
-                            Text("New project").font(Theme.font(12))
-                        }
-                        .foregroundStyle(hovering ? Theme.text : Theme.textMuted)
-                    }
-                // Same height as a project card's title and details.
-                Text(" ").font(Theme.font(13)).padding(.bottom, 16)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
     }
 }
 
@@ -147,45 +86,31 @@ private struct ProjectCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ZStack(alignment: .topTrailing) {
-                Rectangle()
-                    .fill(Theme.surface)
-                    .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                    .overlay {
-                        // Covers change on every save, so they are read fresh instead of from the media cache.
-                        if let image = NSImage(contentsOf: project.coverURL) {
-                            Image(nsImage: image).resizable().scaledToFill()
-                        }
+            Rectangle()
+                .fill(.quaternary)
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                .overlay {
+                    // Covers change on every save, so they are read fresh instead of from the media cache.
+                    if let image = NSImage(contentsOf: project.coverURL) {
+                        Image(nsImage: image).resizable().scaledToFill()
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(hovering ? Theme.textMuted : Theme.outline, lineWidth: 0.5))
-                if hovering {
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white)
-                            .frame(width: 26, height: 26)
-                            .background(Color(hex: 0x0F0F11).opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(8)
-                    .help("Move to Trash")
                 }
-            }
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.separator, lineWidth: 0.5))
+                .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.accentColor, lineWidth: hovering ? 3 : 0).padding(-4))
+                .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
             VStack(alignment: .leading, spacing: 2) {
-                Text(project.name).font(Theme.font(13, .medium)).lineLimit(1)
+                Text(project.name)
+                    .font(.headline)
+                    .lineLimit(1)
                 HStack(spacing: 6) {
                     Text("\(project.frameCount) \(project.frameCount == 1 ? "slide" : "slides") · \(project.modified.formatted(.relative(presentation: .named)))")
                     if project.hasPanorama {
-                        Text("PANO")
-                            .font(Theme.mono(8, .semibold))
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Theme.outline, lineWidth: 0.5))
+                        TablerIcon("panorama-horizontal", size: 14).help("Contains a panorama")
                     }
                 }
-                .font(Theme.font(11))
-                .foregroundStyle(Theme.textMuted)
+                .font(.callout)
+                .foregroundStyle(.secondary)
             }
         }
         .contentShape(Rectangle())

@@ -1,145 +1,96 @@
 import SlidesCore
 import SwiftUI
 
+/// Slide list on the left, all slides in a row in the middle, settings in the inspector.
 struct EditorView: View {
     @Bindable var editor: EditorModel
     let onBack: () -> Void
 
     @Environment(\.undoManager) private var undoManager
-    @FocusState private var focused: Bool
+    @State private var showInspector = true
+    @State private var newName = ""
 
     var body: some View {
-        VStack(spacing: 0) {
-            TopBar(editor: editor, onBack: onBack)
-            Divider().overlay(Theme.outlineSoft)
-            HStack(spacing: 0) {
-                SlideRow(editor: editor, onBackgroundTap: { focused = true })
-                Sidebar(editor: editor)
-            }
-            Divider().overlay(Theme.outlineSoft)
-            Filmstrip(editor: editor)
+        NavigationSplitView {
+            SlideList(editor: editor)
+                .navigationSplitViewColumnWidth(min: 150, ideal: 180, max: 280)
+        } detail: {
+            SlideCanvas(editor: editor)
+                .inspector(isPresented: $showInspector) {
+                    InspectorView(editor: editor)
+                        .inspectorColumnWidth(min: 280, ideal: 300, max: 400)
+                }
         }
-        .background(Theme.background)
-        .focusable()
-        .focusEffectDisabled()
-        .focused($focused)
+        .navigationTitle(editor.project.name)
+        .navigationSubtitle("\(editor.project.frameCount) \(editor.project.frameCount == 1 ? "slide" : "slides")")
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button(action: onBack) {
+                    Label { Text("Projects") } icon: { TablerIcon("chevron-left", size: 18) }
+                }
+                .help("Back to projects")
+            }
+            ToolbarItem(placement: .principal) {
+                Picker("Format", selection: Binding(get: { editor.project.format }, set: editor.setFormat)) {
+                    ForEach(Format.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .help("Slide format")
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: editor.exportWithPanel) {
+                    Label { Text("Export") } icon: { TablerIcon("download", size: 18) }
+                }
+                .help("Export all slides (⌘E)")
+                Button {
+                    showInspector.toggle()
+                } label: {
+                    Label { Text("Inspector") } icon: { TablerIcon("layout-sidebar-right", size: 18) }
+                }
+                .help(showInspector ? "Hide inspector" : "Show inspector")
+            }
+        }
         .onKeyPress(.leftArrow) { editor.selectPrevious(); return .handled }
         .onKeyPress(.rightArrow) { editor.selectNext(); return .handled }
         .onKeyPress(.escape) { onBack(); return .handled }
-        .onAppear {
-            editor.undoManager = undoManager
-            focused = true
-        }
+        .onAppear { editor.undoManager = undoManager }
         .onChange(of: undoManager) { _, manager in editor.undoManager = manager }
-        .onChange(of: editor.selectedSlideID) { _, _ in focused = true }
-        .overlay(alignment: .top) {
+        .overlay(alignment: .bottom) {
             if editor.importing > 0 {
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.mini)
-                    Text("Importing…").font(Theme.font(11))
+                    ProgressView().controlSize(.small)
+                    Text("Importing…")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Theme.surface, in: Capsule())
-                .padding(.top, 64)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+                .padding(.bottom, 16)
             }
         }
-        .overlay {
-            if let progress = editor.exportProgress {
-                ExportProgress(progress: progress)
+        .sheet(isPresented: Binding(get: { editor.exportProgress != nil }, set: { _ in })) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Exporting \(editor.project.frameCount) slides…").font(.headline)
+                ProgressView(value: editor.exportProgress ?? 0)
+                    .frame(width: 280)
             }
+            .padding(20)
+            .interactiveDismissDisabled()
         }
         .alert("Export failed", isPresented: Binding(
             get: { editor.exportError != nil },
             set: { if !$0 { editor.exportError = nil } }
         )) {
-            Button("OK") {}
+            Button("OK", role: .cancel) {}
         } message: {
             Text(editor.exportError ?? "")
         }
-    }
-}
-
-private struct TopBar: View {
-    @Bindable var editor: EditorModel
-    let onBack: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.textMuted)
-                    .frame(width: 26, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Back to projects (Esc)")
-
-            TextField("Name", text: Binding(get: { editor.project.name }, set: { editor.rename($0) }))
-                .textFieldStyle(.plain)
-                .font(Theme.font(13, .medium))
-                .frame(width: 240)
-
-            Spacer()
-
-            Segmented(
-                options: Format.allCases,
-                selection: editor.project.format,
-                label: \.label,
-                onSelect: editor.setFormat
-            )
+        .alert("Rename Project", isPresented: $editor.renaming) {
+            TextField("Name", text: $newName)
+            Button("Rename") { if !newName.isEmpty { editor.rename(newName) } }
+            Button("Cancel", role: .cancel) {}
         }
-        .padding(.horizontal, 14)
-        .frame(height: 48)
-    }
-}
-
-/// Small segmented switch in the original app's look.
-struct Segmented<Option: Hashable>: View {
-    let options: [Option]
-    let selection: Option
-    let label: (Option) -> String
-    let onSelect: (Option) -> Void
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(options, id: \.self) { option in
-                let selected = option == selection
-                Button { onSelect(option) } label: {
-                    Text(label(option))
-                        .font(Theme.mono(10, .medium))
-                        .foregroundStyle(selected ? Theme.background : Theme.textMuted)
-                        .padding(.horizontal, 8)
-                        .frame(maxHeight: .infinity)
-                        .background(selected ? Theme.text : .clear, in: RoundedRectangle(cornerRadius: 3))
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(2)
-        .frame(height: 24)
-        .background(Theme.surface, in: RoundedRectangle(cornerRadius: 4))
-        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Theme.outline, lineWidth: 0.5))
-    }
-}
-
-private struct ExportProgress: View {
-    let progress: Double
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.5).ignoresSafeArea()
-            VStack(spacing: 10) {
-                Text("Exporting…").font(Theme.font(15, .medium))
-                ProgressView(value: progress).frame(width: 240)
-                Text("\(Int(progress * 100))%")
-                    .font(Theme.mono(11))
-                    .foregroundStyle(Theme.textMuted)
-            }
-            .padding(24)
-            .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .onChange(of: editor.renaming) { _, renaming in
+            if renaming { newName = editor.project.name }
         }
     }
 }

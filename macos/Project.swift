@@ -34,6 +34,8 @@ let appSettings: SettingsDictionary = sharedSettings.merging([
     // Release is ad hoc by default; the CI archive step passes its Developer ID identity and team.
     "CODE_SIGN_IDENTITY": "-",
     "CODE_SIGN_STYLE": "Manual",
+    // No custom accent: the app follows the system accent color.
+    "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "",
 ]) { _, new in new }
 
 /// Local Debug builds sign with the development certificate, so macOS keeps file permissions across rebuilds.
