@@ -30,18 +30,14 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Download assets and compute sha256
+      - name: Download asset and compute sha256
         id: sha
         run: |
           V="${{ steps.ver.outputs.version }}"
-          TAG="${{ steps.ver.outputs.tag }}"
-          BASE="https://github.com/${{ github.repository }}/releases/download/$TAG"
-          curl -fsSL -o arm.zip "$BASE/slides-$V-mac-aarch64.zip"
-          curl -fsSL -o x86.zip "$BASE/slides-$V-mac-amd64.zip"
-          SHA_ARM=$(sha256sum arm.zip | cut -d' ' -f1)
-          SHA_X86=$(sha256sum x86.zip | cut -d' ' -f1)
-          echo "sha_arm=$SHA_ARM" >> "$GITHUB_OUTPUT"
-          echo "sha_x86=$SHA_X86" >> "$GITHUB_OUTPUT"
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.ver.outputs.tag }}/Slides-$V.zip"
+          curl -fsSL -o asset.zip "$URL"
+          SHA=$(sha256sum asset.zip | cut -d' ' -f1)
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
 
       - name: Checkout tap
         uses: actions/checkout@v4
@@ -55,26 +51,23 @@ jobs:
           cat > tap/Casks/slides.rb <<EOF
           cask "slides" do
             version "${{ steps.ver.outputs.version }}"
+            sha256 "${{ steps.sha.outputs.sha256 }}"
 
-            on_arm do
-              sha256 "${{ steps.sha.outputs.sha_arm }}"
-              url "https://github.com/yannickpulver/slides/releases/download/#{version}/slides-#{version}-mac-aarch64.zip"
-            end
-
-            on_intel do
-              sha256 "${{ steps.sha.outputs.sha_x86 }}"
-              url "https://github.com/yannickpulver/slides/releases/download/#{version}/slides-#{version}-mac-amd64.zip"
-            end
-
+            url "https://github.com/yannickpulver/slides/releases/download/#{version}/Slides-#{version}.zip"
             name "Slides"
-            desc "Compose Multiplatform slides app"
+            desc "Photo and video carousel editor"
             homepage "https://github.com/yannickpulver/slides"
+
+            # Sparkle updates the app in place, so brew shouldn't try to as well.
+            auto_updates true
+            depends_on macos: ">= :tahoe"
 
             app "Slides.app"
 
             zap trash: [
               "~/Library/Application Support/Slides",
               "~/Library/Preferences/com.yannickpulver.slides.plist",
+              "~/Library/Saved Application State/com.yannickpulver.slides.savedState",
             ]
           end
           EOF
