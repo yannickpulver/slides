@@ -1,7 +1,7 @@
 import SlidesCore
 import SwiftUI
 
-/// Slide list on the left, all slides in a row in the middle, settings in the inspector.
+/// The selected slide on the canvas, all slides in the filmstrip below, settings in the inspector.
 struct EditorView: View {
     @Bindable var editor: EditorModel
     let onBack: () -> Void
@@ -11,15 +11,13 @@ struct EditorView: View {
     @State private var newName = ""
 
     var body: some View {
-        NavigationSplitView {
-            SlideList(editor: editor)
-                .navigationSplitViewColumnWidth(min: 150, ideal: 180, max: 280)
-        } detail: {
+        VStack(spacing: 0) {
             SlideCanvas(editor: editor)
-                .inspector(isPresented: $showInspector) {
-                    InspectorView(editor: editor)
-                        .inspectorColumnWidth(min: 280, ideal: 300, max: 400)
-                }
+            Filmstrip(editor: editor)
+        }
+        .inspector(isPresented: $showInspector) {
+            InspectorView(editor: editor)
+                .inspectorColumnWidth(min: 280, ideal: 300, max: 400)
         }
         .navigationTitle(editor.project.name)
         .navigationSubtitle("\(editor.project.frameCount) \(editor.project.frameCount == 1 ? "slide" : "slides")")

@@ -39,7 +39,7 @@ No migration of old projects.
 - [x] MP4 export (30 fps, audio of first video, shortest length, Rec. 709)
 
 ## Native UI (like Print Lab)
-- [x] NavigationSplitView: slide list sidebar (drag to reorder, drop files, context menu, ⌫ deletes)
+- [x] Horizontal filmstrip below the canvas (drag to reorder, drop files, context menu)
 - [x] Selected slide centered on the canvas, inspector with cards (Tabler icons)
 - [x] Native toolbar: back, format picker, export, inspector toggle; title + subtitle
 - [x] Start screen: toolbar search, sort menu, new; ContentUnavailableView
