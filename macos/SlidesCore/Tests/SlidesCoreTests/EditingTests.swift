@@ -75,6 +75,13 @@ struct EditingTests {
         #expect(project.slides.count == 1)
     }
 
+    @Test func unknownFilmEdgeStillDecodes() throws {
+        let json = #"{"fit":"fill","border":10,"gap":0,"color":{"r":1,"g":1,"b":1},"blur":0,"filmEdge":"white_thin_1"}"#
+        let style = try JSONDecoder().decode(SlideStyle.self, from: Data(json.utf8))
+        #expect(style.filmEdge == nil)
+        #expect(style.border == 10)
+    }
+
     @Test func frameCountCountsPanoramaParts() {
         var project = Project(name: "Test")
         project.slides[0].choose(.single, span: 3)

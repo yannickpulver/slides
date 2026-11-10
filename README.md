@@ -18,7 +18,7 @@ Slides updates itself through Sparkle. It needs macOS 26 or later.
 - One, two or three stacked photos per slide, or a panorama across 2 to 5 slides
 - Pan and zoom each photo; it always covers its slot
 - Background color or blurred background image, gap and border
-- 13 film-edge overlays
+- Thin film-gate edge in white or black
 - Export as PNG (1x, 2x, 3x) or MP4 with the audio of the first video
 - Exported files are dated one second apart, so apps keep the order
 

@@ -215,48 +215,15 @@ private struct PhotoCard: View {
                 .labelsHidden()
             }
             PixelSlider(label: "Border", value: slide.style.border, range: 0...SlideStyle.maxBorder, onChange: editor.setBorder)
-            Text("Film edge").foregroundStyle(.secondary)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
-                FilmEdgeChip(edge: nil, selected: slide.style.filmEdge == nil) { editor.setFilmEdge(nil) }
-                ForEach(FilmEdge.allCases, id: \.self) { edge in
-                    FilmEdgeChip(edge: edge, selected: slide.style.filmEdge == edge) { editor.setFilmEdge(edge) }
+            Row(label: "Film edge") {
+                Picker("Film edge", selection: Binding(get: { slide.style.filmEdge }, set: editor.setFilmEdge)) {
+                    Text("None").tag(FilmEdge?.none)
+                    ForEach(FilmEdge.allCases, id: \.self) { Text($0.name).tag(FilmEdge?.some($0)) }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
         }
-    }
-}
-
-private struct FilmEdgeChip: View {
-    let edge: FilmEdge?
-    let selected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Color(hex: 0x6B747E)
-                .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .overlay(alignment: .topLeading) {
-                    GeometryReader { proxy in
-                        if let edge, let url = edge.url(landscape: false, preview: true),
-                           let image = MediaCache.shared.image(for: url) {
-                            // The top-left corner, zoomed in: at chip size the whole edge would be under a pixel.
-                            Image(decorative: image, scale: 1)
-                                .resizable()
-                                .frame(width: proxy.size.width * 4, height: proxy.size.height * 4)
-                        } else if edge == nil {
-                            TablerIcon("x", size: 12)
-                                .foregroundStyle(.white)
-                                .frame(width: proxy.size.width, height: proxy.size.height)
-                        }
-                    }
-                }
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-            .padding(2)
-            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help(edge?.rawValue.replacingOccurrences(of: "_", with: " ").capitalized ?? "No film edge")
     }
 }
 
@@ -295,16 +262,5 @@ extension RGB {
     init(_ color: NSColor) {
         let resolved = color.usingColorSpace(.sRGB) ?? .white
         self.init(r: resolved.redComponent, g: resolved.greenComponent, b: resolved.blueComponent)
-    }
-}
-
-extension Color {
-    init(hex: UInt32) {
-        self.init(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255,
-            green: Double((hex >> 8) & 0xFF) / 255,
-            blue: Double(hex & 0xFF) / 255
-        )
     }
 }

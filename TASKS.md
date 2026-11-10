@@ -49,6 +49,10 @@ No migration of old projects.
 ## Export size
 - [x] Frames are 768 × 1024 (4:3) and 576 × 1024 (16:9) at 1x; Export writes 2× (1536 × 2048), "Other Size" offers Large (3×)
 
+## Film edges
+- [x] Only the thin gate masks from Figma ("Film mask/thin"): white and black; landscape = rotated portrait
+- [x] Older projects with removed edge names still open (edge dropped)
+
 ## 7. Switch over
 - [x] Rendering checked in the running app (editor, start screen, export contact sheet)
 - [ ] Click through drag & drop, pan/zoom, reorder, undo, video play by hand (not automated)

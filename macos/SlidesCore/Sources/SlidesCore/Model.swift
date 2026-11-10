@@ -128,6 +128,22 @@ public struct SlideStyle: Codable, Equatable, Sendable {
     public var filmEdge: FilmEdge?
 
     public init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case fit, border, gap, color, backgroundImage, blur, filmEdge
+    }
+
+    /// Missing or unknown values fall back to the defaults, so an older project still opens.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fit = (try? c.decodeIfPresent(Fit.self, forKey: .fit)) ?? .fill
+        border = (try? c.decodeIfPresent(Double.self, forKey: .border)) ?? 0
+        gap = (try? c.decodeIfPresent(Double.self, forKey: .gap)) ?? 0
+        color = (try? c.decodeIfPresent(RGB.self, forKey: .color)) ?? .white
+        backgroundImage = try? c.decodeIfPresent(String.self, forKey: .backgroundImage)
+        blur = (try? c.decodeIfPresent(Double.self, forKey: .blur)) ?? 0
+        filmEdge = try? c.decodeIfPresent(FilmEdge.self, forKey: .filmEdge)
+    }
 }
 
 public struct RGB: Codable, Equatable, Hashable, Sendable {
@@ -145,23 +161,19 @@ public struct RGB: Codable, Equatable, Hashable, Sendable {
     public static let black = RGB(r: 0, g: 0, b: 0)
 }
 
-/// Film-edge overlays stretched over the visible photo.
+/// Thin film-gate edge stretched over the visible photo (from the "Film mask/thin" set in Figma).
 public enum FilmEdge: String, Codable, CaseIterable, Sendable {
-    case whiteThin1 = "white_thin_1"
-    case whiteThin2 = "white_thin_2"
-    case whiteThin3 = "white_thin_3"
-    case double1 = "double_1"
-    case double2 = "double_2"
-    case double3 = "double_3"
-    case doubleInv1 = "double_inv_1"
-    case doubleInv2 = "double_inv_2"
-    case doubleInv3 = "double_inv_3"
-    case whiteSoft = "white_soft"
-    case blackSoft1 = "black_soft_1"
-    case blackSoft2 = "black_soft_2"
-    case blackSoft3 = "black_soft_3"
+    case gateWhite = "gate_white"
+    case gateBlack = "gate_black"
 
-    /// Bundled PNG. `preview` is a quarter-size copy for the editor.
+    public var name: String {
+        switch self {
+        case .gateWhite: "White"
+        case .gateBlack: "Black"
+        }
+    }
+
+    /// Bundled PNG. `preview` is a 1024 px copy for the editor.
     public func url(landscape: Bool, preview: Bool) -> URL? {
         let name = "\(rawValue)_\(landscape ? "landscape" : "portrait")"
         return Bundle.module.url(

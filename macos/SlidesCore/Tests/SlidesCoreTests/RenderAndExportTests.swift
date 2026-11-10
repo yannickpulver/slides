@@ -66,7 +66,7 @@ struct RenderTests {
     @Test func filmEdgeDraws() {
         var slide = Slide()
         slide.place([Media(file: "red", kind: .image)], at: nil)
-        slide.style.filmEdge = .blackSoft1
+        slide.style.filmEdge = .gateBlack
         let renderer = SlideRenderer(
             layout: SlideLayout(slide: slide, format: .portrait4x3),
             scale: 1,
@@ -74,8 +74,9 @@ struct RenderTests {
             background: nil
         )
         let image = renderer.render(part: 0)!
-        // The soft black edge darkens the corner of the red photo.
-        #expect(image.pixel(x: 2, y: 2).r < 200)
+        // The black gate edge covers the corner of the red photo, the center stays red.
+        #expect(image.pixel(x: 2, y: 2).r < 60)
+        #expect(image.pixel(x: 384, y: 512) == (255, 0, 0))
         #expect(FilmEdge.allCases.allSatisfy { $0.url(landscape: true, preview: true) != nil && $0.url(landscape: false, preview: false) != nil })
     }
 }
