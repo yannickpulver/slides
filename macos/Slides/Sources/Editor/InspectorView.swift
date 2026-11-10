@@ -18,6 +18,9 @@ struct InspectorView: View {
                 ExportCard(editor: editor)
             }
             .padding(16)
+            // No preferred width of its own: otherwise the column re-measures on every slide
+            // switch and grows to the sliders' preferred width.
+            .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity)
         }
     }
 }
@@ -52,8 +55,11 @@ private struct LayoutCard: View {
 
     var body: some View {
         Card(title: "Slide \(editor.currentIndex + 1)", icon: "layout-rows") {
-            Text(slide.isPanorama ? "Panorama over \(slide.span) slides" : "\(slide.mediaCount) of \(slide.layout.slotCount) photos")
+            // Short and allowed to truncate: a longer text here would widen the inspector.
+            Text(slide.isPanorama ? "\(slide.span) parts" : "\(slide.mediaCount) of \(slide.layout.slotCount)")
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .layoutPriority(-1)
         } content: {
             Text("Stack").foregroundStyle(.secondary)
             HStack(spacing: 8) {
@@ -215,13 +221,15 @@ private struct PhotoCard: View {
                 .labelsHidden()
             }
             PixelSlider(label: "Border", value: slide.style.border, range: 0...SlideStyle.maxBorder, onChange: editor.setBorder)
-            Row(label: "Film edge") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Film edge").foregroundStyle(.secondary)
                 Picker("Film edge", selection: Binding(get: { slide.style.filmEdge }, set: editor.setFilmEdge)) {
                     Text("None").tag(FilmEdge?.none)
                     ForEach(FilmEdge.allCases, id: \.self) { Text($0.name).tag(FilmEdge?.some($0)) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .fixedSize()
             }
         }
     }
