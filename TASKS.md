@@ -51,5 +51,5 @@ No migration of old projects.
 - [ ] Click through drag & drop, pan/zoom, reorder, undo, video play by hand (not automated)
 - [x] Delete Kotlin, Conveyor, iosApp, fastlane leftovers
 - [x] README, VERSION 2.0.0, homebrew workflow
-- [ ] `SPARKLE_PRIVATE_KEY` secret on the repo (ask Yannick)
+- [x] `SPARKLE_PRIVATE_KEY` secret on the repo
 - [ ] New `screenshot.png` for the README
