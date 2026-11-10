@@ -47,7 +47,7 @@ No migration of old projects.
 - [x] Rename via File › Rename Project…, Add Photos ⌘O, Export ⌘E
 
 ## Export size
-- [x] Frames are 768 × 1024 (4:3) and 576 × 1024 (16:9) at 1x; export offers 2× (default, 1536 × 2048) and 3×
+- [x] Frames are 768 × 1024 (4:3) and 576 × 1024 (16:9) at 1x; Export writes 2× (1536 × 2048), "Other Size" offers Large (3×)
 
 ## 7. Switch over
 - [x] Rendering checked in the running app (editor, start screen, export contact sheet)

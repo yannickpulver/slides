@@ -15,7 +15,6 @@ final class EditorModel {
     private(set) var importing = 0
     private(set) var exportProgress: Double?
     var exportError: String?
-    var exportScale = 2
     var renaming = false
 
     @ObservationIgnored weak var undoManager: UndoManager?
@@ -205,8 +204,26 @@ final class EditorModel {
 
     // MARK: - Export
 
-    func exportWithPanel() {
-        if let folder = FilePanel.pickFolder() { export(to: folder) }
+    /// Export sizes: Instagram keeps photos up to 2× (1536 × 2048 for 4:3).
+    enum ExportSize: Int, CaseIterable {
+        case instagram = 2
+        case large = 3
+
+        var name: String {
+            switch self {
+            case .instagram: "Instagram"
+            case .large: "Large"
+            }
+        }
+    }
+
+    func pixelSize(_ size: ExportSize) -> String {
+        let scale = Double(size.rawValue)
+        return "\(String(Int(project.format.width * scale))) × \(String(Int(project.format.height * scale))) px"
+    }
+
+    func exportWithPanel(_ size: ExportSize = .instagram) {
+        if let folder = FilePanel.pickFolder() { export(to: folder, size: size) }
     }
 
     func pickMediaForCurrentSlide() {
@@ -214,13 +231,13 @@ final class EditorModel {
         if !urls.isEmpty { drop(urls, slot: nil, in: selectedSlideID) }
     }
 
-    func export(to folder: URL) {
+    func export(to folder: URL, size: ExportSize = .instagram) {
         guard exportProgress == nil else { return }
         saveNow()
         exportProgress = 0
         let library = library
         let projectURL = url
-        let exporter = Exporter(project: project, scale: exportScale) { library.mediaURL($0, in: projectURL) }
+        let exporter = Exporter(project: project, scale: size.rawValue) { library.mediaURL($0, in: projectURL) }
         Task {
             do {
                 let urls = try await exporter.export(to: folder) { fraction in

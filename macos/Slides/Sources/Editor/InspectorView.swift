@@ -240,31 +240,30 @@ private struct FilmEdgeChip: View {
 // MARK: - Export
 
 private struct ExportCard: View {
-    @Bindable var editor: EditorModel
+    let editor: EditorModel
 
     var body: some View {
         Card(title: "Export", icon: "download") {
-            Row(label: "Size") {
-                Picker("Size", selection: $editor.exportScale) {
-                    // 2× is Instagram's largest size; smaller exports only lose detail.
-                    Text("2×").tag(2)
-                    Text("3×").tag(3)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-            let width = Int(editor.project.format.width) * editor.exportScale
-            let height = Int(editor.project.format.height) * editor.exportScale
-            Text("\(String(width)) × \(String(height)) px" + (editor.exportScale == 2 ? " · largest size Instagram keeps" : " · larger than Instagram keeps"))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Button(action: editor.exportWithPanel) {
+            Button { editor.exportWithPanel() } label: {
                 Text("Export \(editor.project.frameCount) \(editor.project.frameCount == 1 ? "Slide" : "Slides")…")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            HStack {
+                Text("\(editor.pixelSize(.instagram)), the largest size Instagram keeps")
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Menu("Other Size") {
+                    ForEach(EditorModel.ExportSize.allCases.filter { $0 != .instagram }, id: \.self) { size in
+                        Button("\(size.name) · \(editor.pixelSize(size))…") { editor.exportWithPanel(size) }
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
         }
     }
 }

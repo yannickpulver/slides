@@ -33,6 +33,8 @@ struct SlidesApp: App {
                     Button("Rename Project…") { app.editor?.renaming = true }
                     Button("Export…") { app.editor?.exportWithPanel() }
                         .keyboardShortcut("e")
+                    Button("Export Large…") { app.editor?.exportWithPanel(.large) }
+                        .keyboardShortcut("e", modifiers: [.command, .option])
                 }
                 .disabled(app.editor == nil)
             }

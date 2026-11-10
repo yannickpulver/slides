@@ -36,7 +36,7 @@ struct EditorView: View {
                 .help("Slide format")
             }
             ToolbarItemGroup(placement: .primaryAction) {
-                Button(action: editor.exportWithPanel) {
+                Button { editor.exportWithPanel() } label: {
                     Label { Text("Export") } icon: { TablerIcon("download", size: 18) }
                 }
                 .help("Export all slides (⌘E)")
