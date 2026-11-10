@@ -25,6 +25,12 @@ struct EditorView: View {
         .onKeyPress(.upArrow) { editor.selectPrevious(); return .handled }
         .onKeyPress(.downArrow) { editor.selectNext(); return .handled }
         .onKeyPress(.escape) { onBack(); return .handled }
+        .onKeyPress { press in
+            // ⌫ arrives as U+007F on macOS, forward delete as `.deleteForward`.
+            guard press.key == .delete || press.key == .deleteForward || press.characters == "\u{7F}" else { return .ignored }
+            deleteSelectedSlide()
+            return .handled
+        }
         .onChange(of: editor.selectedSlideID) { _, _ in keysFocused = true }
         .inspector(isPresented: $showInspector) {
             InspectorView(editor: editor)
@@ -94,5 +100,11 @@ struct EditorView: View {
         .onChange(of: editor.renaming) { _, renaming in
             if renaming { newName = editor.project.name }
         }
+    }
+
+    /// ⌫ deletes the selected slide; the last remaining slide stays.
+    private func deleteSelectedSlide() {
+        guard editor.project.slides.count > 1 else { return }
+        editor.removeSlide(editor.selectedSlideID)
     }
 }

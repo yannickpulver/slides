@@ -20,8 +20,9 @@ struct SlidesApp: App {
                     .disabled(!updater.canCheckForUpdates)
             }
             CommandGroup(replacing: .newItem) {
+                // In a project ⌘N adds a slide, so a new project moves to ⇧⌘N.
                 Button("New Project") { app.newProject() }
-                    .keyboardShortcut("n")
+                    .keyboardShortcut("n", modifiers: app.editor == nil ? .command : [.command, .shift])
                 Button("Back to Projects") { app.close() }
                     .keyboardShortcut("w", modifiers: [.command, .shift])
                     .disabled(app.editor == nil)
@@ -39,7 +40,7 @@ struct SlidesApp: App {
             CommandMenu("Slide") {
                 Group {
                     Button("Add Slide") { app.editor?.addSlide() }
-                        .keyboardShortcut("n", modifiers: [.command, .shift])
+                        .keyboardShortcut(app.editor == nil ? nil : KeyboardShortcut("n"))
                     Button("Add Photos…") { app.editor?.pickMediaForCurrentSlide() }
                         .keyboardShortcut("o")
                     Divider()
