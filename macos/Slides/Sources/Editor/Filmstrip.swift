@@ -40,7 +40,7 @@ struct Filmstrip: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Add slide (⇧⌘N)")
+        .help("Add slide (⌘N)")
         // Dropping a slide here moves it to the end.
         .dropDestination(for: String.self) { ids, _ in
             guard let id = ids.first.flatMap(UUID.init(uuidString:)) else { return false }
