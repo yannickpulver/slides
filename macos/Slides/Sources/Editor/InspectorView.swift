@@ -229,7 +229,8 @@ private struct PhotoCard: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .fixedSize()
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
             }
         }
     }
