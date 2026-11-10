@@ -9,12 +9,23 @@ struct EditorView: View {
     @Environment(\.undoManager) private var undoManager
     @State private var showInspector = true
     @State private var newName = ""
+    /// Holds keyboard focus for the arrow keys, so they switch slides.
+    @FocusState private var keysFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             SlideCanvas(editor: editor)
             Filmstrip(editor: editor)
         }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($keysFocused)
+        .onKeyPress(.leftArrow) { editor.selectPrevious(); return .handled }
+        .onKeyPress(.rightArrow) { editor.selectNext(); return .handled }
+        .onKeyPress(.upArrow) { editor.selectPrevious(); return .handled }
+        .onKeyPress(.downArrow) { editor.selectNext(); return .handled }
+        .onKeyPress(.escape) { onBack(); return .handled }
+        .onChange(of: editor.selectedSlideID) { _, _ in keysFocused = true }
         .inspector(isPresented: $showInspector) {
             InspectorView(editor: editor)
                 .inspectorColumnWidth(min: 280, ideal: 300, max: 400)
@@ -41,10 +52,10 @@ struct EditorView: View {
                 .help(showInspector ? "Hide inspector" : "Show inspector")
             }
         }
-        .onKeyPress(.leftArrow) { editor.selectPrevious(); return .handled }
-        .onKeyPress(.rightArrow) { editor.selectNext(); return .handled }
-        .onKeyPress(.escape) { onBack(); return .handled }
-        .onAppear { editor.undoManager = undoManager }
+        .onAppear {
+            editor.undoManager = undoManager
+            keysFocused = true
+        }
         .onChange(of: undoManager) { _, manager in editor.undoManager = manager }
         .overlay(alignment: .bottom) {
             if editor.importing > 0 {
