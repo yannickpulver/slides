@@ -284,18 +284,26 @@ struct RoundButton: View {
     }
 }
 
-/// Film edge from the quarter-size preview set, stretched over the visible photo.
+/// Film edge from the quarter-size preview set, drawn in nine pieces around the visible photos.
 struct FilmEdgeImage: View {
     let edge: FilmEdge
     let rect: CGRect
+    /// One frame's height in points.
+    let frameHeight: Double
 
     var body: some View {
-        if let url = edge.url(landscape: rect.width > rect.height, preview: true),
-           let image = MediaCache.shared.image(for: url) {
-            Image(decorative: image, scale: 1)
-                .resizable()
-                .placed(at: rect)
-                .allowsHitTesting(false)
+        if let url = edge.url(preview: true), let image = MediaCache.shared.image(for: url) {
+            let pieces = FilmEdge.pieces(maskSize: CGSize(width: image.width, height: image.height), in: rect, frameHeight: frameHeight)
+            ZStack(alignment: .topLeading) {
+                ForEach(pieces.indices, id: \.self) { index in
+                    if let part = image.cropping(to: pieces[index].source) {
+                        Image(decorative: part, scale: 1)
+                            .resizable()
+                            .placed(at: pieces[index].target)
+                    }
+                }
+            }
+            .allowsHitTesting(false)
         }
     }
 }

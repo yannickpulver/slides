@@ -31,6 +31,18 @@ struct SlideLayoutTests {
         #expect(slots[1] == CGRect(x: 40, y: 522, width: 688, height: 462))
     }
 
+    @Test func filmEdgeKeepsItsThicknessOnAPanorama() {
+        let mask = CGSize(width: 3072, height: 4096)
+        let single = FilmEdge.pieces(maskSize: mask, in: CGRect(x: 0, y: 0, width: 768, height: 1024), frameHeight: 1024)
+        let panorama = FilmEdge.pieces(maskSize: mask, in: CGRect(x: 0, y: 0, width: 1536, height: 1024), frameHeight: 1024)
+        #expect(single.count == 8)
+        // Top-left corner and left edge are the same size; only the top edge gets longer.
+        #expect(single[0].target == panorama[0].target)
+        #expect(single[3].target.width == panorama[3].target.width)
+        #expect(panorama[1].target.width == 1536 - 2 * single[0].target.width)
+        #expect(panorama.last!.target.maxX == 1536)
+    }
+
     @Test func panoramaCanvasCoversAllParts() {
         var slide = Slide()
         slide.choose(.single, span: 3)
