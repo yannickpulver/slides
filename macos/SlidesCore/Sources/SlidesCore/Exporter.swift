@@ -70,6 +70,21 @@ public struct Exporter: Sendable {
         return written
     }
 
+    /// The frames of one slide as images, one per panorama part. Videos show their first frame.
+    @concurrent
+    public func render(slideAt index: Int) async -> [CGImage] {
+        let slide = project.slides[index]
+        let images = await loadImages(for: slide)
+        let background = slide.style.backgroundImage.flatMap { MediaLoader.image(at: mediaURL($0)) }
+        let renderer = SlideRenderer(
+            layout: SlideLayout(slide: slide, format: project.format),
+            scale: Double(scale),
+            images: images,
+            background: background
+        )
+        return (0..<slide.span).compactMap { renderer.render(part: $0) }
+    }
+
     /// Full-size photos, plus video posters so a video slide has pixels before its first frame.
     private func loadImages(for slide: Slide) async -> [String: CGImage] {
         var images: [String: CGImage] = [:]
@@ -77,6 +92,13 @@ public struct Exporter: Sendable {
             images[media.file] = await MediaLoader.preview(at: mediaURL(media.file))
         }
         return images
+    }
+
+    public static func pngData(_ image: CGImage) -> Data? {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
     public static func writePNG(_ image: CGImage, to url: URL) throws {

@@ -1,3 +1,4 @@
+import AppKit
 import SlidesCore
 import SwiftUI
 
@@ -20,16 +21,59 @@ struct EditorView: View {
         .focusable()
         .focusEffectDisabled()
         .focused($keysFocused)
-        .onKeyPress(.leftArrow) { editor.selectPrevious(); return .handled }
-        .onKeyPress(.rightArrow) { editor.selectNext(); return .handled }
-        .onKeyPress(.upArrow) { editor.selectPrevious(); return .handled }
-        .onKeyPress(.downArrow) { editor.selectNext(); return .handled }
-        .onKeyPress(.escape) { onBack(); return .handled }
+        .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow]) { press in
+            guard !typing else { return .ignored }
+            if let id = editor.selectedTextID {
+                // Arrows nudge the selected text, 10 px with ⇧.
+                let step = press.modifiers.contains(.shift) ? 10.0 : 1.0
+                let (dx, dy) = switch press.key {
+                case .leftArrow: (-step, 0.0)
+                case .rightArrow: (step, 0.0)
+                case .upArrow: (0.0, -step)
+                default: (0.0, step)
+                }
+                editor.updateText(id, "nudge") { $0.x += dx; $0.y += dy }
+            } else if press.key == .leftArrow || press.key == .upArrow {
+                editor.selectPrevious()
+            } else {
+                editor.selectNext()
+            }
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            guard !typing else { return .ignored }
+            if editor.placingText {
+                editor.placingText = false
+            } else if editor.selectedTextID != nil {
+                editor.selectText(nil)
+            } else {
+                onBack()
+            }
+            return .handled
+        }
+        .onKeyPress(.return) {
+            guard !typing, let id = editor.selectedTextID else { return .ignored }
+            editor.editText(id)
+            return .handled
+        }
         .onKeyPress { press in
+            guard !typing else { return .ignored }
+            if press.characters == "t", press.modifiers.isEmpty {
+                toggleTextTool()
+                return .handled
+            }
             // ⌫ arrives as U+007F on macOS, forward delete as `.deleteForward`.
             guard press.key == .delete || press.key == .deleteForward || press.characters == "\u{7F}" else { return .ignored }
-            deleteSelectedSlide()
+            if let id = editor.selectedTextID {
+                editor.removeText(id)
+            } else {
+                deleteSelectedSlide()
+            }
             return .handled
+        }
+        .onChange(of: editor.editingTextID) { _, id in
+            // While editing, the text field holds the keys; SwiftUI focus would take them back.
+            keysFocused = id == nil
         }
         .onChange(of: editor.selectedSlideID) { _, _ in keysFocused = true }
         .inspector(isPresented: $showInspector) {
@@ -46,6 +90,11 @@ struct EditorView: View {
                 .help("Back to projects")
             }
             ToolbarItemGroup(placement: .primaryAction) {
+                Button(action: toggleTextTool) {
+                    Label { Text("Text") } icon: { TablerIcon("typography", size: 18) }
+                        .foregroundStyle(editor.placingText ? Color.accentColor : .primary)
+                }
+                .help("Add text (T): click on the slide, or drag for a fixed width")
                 Button { editor.exportWithPanel() } label: {
                     Label { Text("Export") } icon: { TablerIcon("download", size: 18) }
                 }
@@ -102,9 +151,21 @@ struct EditorView: View {
         }
     }
 
+    /// A text field has the keys (inline text, inspector fields): the shortcuts step aside.
+    /// SwiftUI asks these handlers before the field gets the key.
+    private var typing: Bool {
+        NSApp.keyWindow?.firstResponder is NSTextView
+    }
+
+    private func toggleTextTool() {
+        editor.selectText(nil)
+        editor.placingText.toggle()
+    }
+
     /// ⌫ deletes the selected slide; the last remaining slide stays.
     private func deleteSelectedSlide() {
         guard editor.project.slides.count > 1 else { return }
         editor.removeSlide(editor.selectedSlideID)
     }
 }
+

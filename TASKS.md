@@ -60,3 +60,26 @@ No migration of old projects.
 - [x] README, VERSION 2.0.0, homebrew workflow
 - [x] `SPARKLE_PRIVATE_KEY` secret on the repo
 - [x] New `screenshot.png` for the README
+
+## MCP server (`macos/Slides/Sources/MCP/`)
+- [x] HTTP server on 127.0.0.1 (Streamable HTTP, JSON replies), Origin check
+- [x] JSON-RPC: initialize, ping, tools/list, tools/call
+- [x] Tools: projects (list, open, create, close, delete), project (get, update), slides (select, add, delete, move, update), media (add, remove, crop), render, export, undo/redo
+- [x] Async import + export in `EditorModel` for the tools
+- [x] `Exporter.render(slideAt:)` + test
+- [x] Menu: copy the `claude mcp add` command; README section
+- [x] Verified against the running app with curl + Claude Code
+
+## Text (free-flowing, like Figma)
+- [x] Model: `TextBox` (text, x/y, auto or fixed width, font, size, color, align, line height, letter spacing) on `Slide`, old projects still open
+- [x] `TextRenderer` (CoreText): measure + draw; renderer draws text over photos (PNG, MP4, cover, thumbnails)
+- [x] Editor: T / toolbar text tool, click to place, drag for fixed width
+- [x] Select, move (snap to centers), left/right handles for width, double-click to edit in place
+- [x] Keys: ⌫ deletes text, arrows nudge, Esc deselects, Enter edits
+- [x] Inspector Text card: font family + style, size, color, align, width mode, line height, letter spacing
+- [x] MCP: add_text, update_text, remove_text, list_fonts; texts in get_project
+- [x] Tests (decode old project, measure, render)
+- [x] Verified via MCP + renders + editor screenshot
+- [x] Clicked through the canvas with the real cursor: place, drag for width, select, move + snap, width handle, inline edit, Esc, ⌫, arrows
+- [x] Edit › Undo/Redo menu reaches the project (the focus proxy has no undo manager)
+- [ ] ⌘Z keystroke still doesn't undo (also on main): needs a check with a real keypress

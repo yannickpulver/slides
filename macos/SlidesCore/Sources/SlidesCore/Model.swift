@@ -60,8 +60,26 @@ public struct Slide: Codable, Equatable, Sendable, Identifiable {
     public var style = SlideStyle()
     /// Set once the layout is picked by hand. Until then, drops grow the layout.
     public var layoutChosen = false
+    /// Text over the photos, back to front.
+    public var texts: [TextBox] = []
 
     public init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case id, layout, span, slots, style, layoutChosen, texts
+    }
+
+    /// Projects from before text have no `texts`.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        layout = try c.decode(Layout.self, forKey: .layout)
+        span = try c.decode(Int.self, forKey: .span)
+        slots = try c.decode([Media?].self, forKey: .slots)
+        style = try c.decode(SlideStyle.self, forKey: .style)
+        layoutChosen = try c.decodeIfPresent(Bool.self, forKey: .layoutChosen) ?? false
+        texts = try c.decodeIfPresent([TextBox].self, forKey: .texts) ?? []
+    }
 
     public var isPanorama: Bool { span > 1 }
     public var mediaCount: Int { slots.compactMap(\.self).count }

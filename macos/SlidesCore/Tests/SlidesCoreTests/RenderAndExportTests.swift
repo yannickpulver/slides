@@ -93,6 +93,20 @@ struct ExportTests {
         #expect(names == ["slide1-\(first)-1@2x.png", "slide2-\(first)-2@2x.png", "slide3-\(second)@2x.mp4"])
     }
 
+    @Test func renderGivesOneImagePerPanoramaPart() async throws {
+        let folder = Fixtures.tempFolder()
+        let photo = Fixtures.writePNG(Fixtures.image(width: 100, height: 100, color: .black), named: "p.png", in: folder)
+        var project = Project(name: "Test")
+        project.slides[0].choose(.single, span: 3)
+        project.slides[0].place([Media(file: "p.png", kind: .image)], at: nil)
+
+        let images = await Exporter(project: project, scale: 1) { _ in photo }.render(slideAt: 0)
+        #expect(images.count == 3)
+        #expect(images[1].width == 768 && images[1].pixel(x: 384, y: 512) == (0, 0, 0))
+        let png = try #require(Exporter.pngData(images[0]))
+        #expect(png.starts(with: [0x89, 0x50, 0x4E, 0x47]))
+    }
+
     @Test func exportWritesDatedPNGs() async throws {
         let folder = Fixtures.tempFolder()
         let photo = Fixtures.writePNG(Fixtures.image(width: 100, height: 100, color: .black), named: "p.png", in: folder)
