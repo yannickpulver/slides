@@ -119,6 +119,12 @@ final class EditorModel {
         select(id)
     }
 
+    func duplicateSlide(_ id: Slide.ID) {
+        var copy: Slide.ID?
+        edit { copy = $0.duplicateSlide(id) }
+        if let copy { select(copy) }
+    }
+
     func removeSlide(_ id: Slide.ID) {
         var next: Slide.ID?
         edit { next = $0.removeSlide(id) }
