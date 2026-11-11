@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import CoreGraphics
+import CoreImage
 import ImageIO
 import UniformTypeIdentifiers
 
@@ -16,6 +17,7 @@ public enum MediaLoader {
 
     /// Decodes a photo upright (EXIF orientation applied), at most `maxPixelSize` on its long side.
     public static func image(at url: URL, maxPixelSize: Int? = nil) -> CGImage? {
+        if let maxPixelSize, isRAW(url), let image = rawImage(at: url, maxPixelSize: maxPixelSize) { return image }
         guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else {
             return nil
         }
@@ -26,6 +28,35 @@ public enum MediaLoader {
         ]
         if let maxPixelSize { options[kCGImageSourceThumbnailMaxPixelSize] = maxPixelSize }
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
+    /// Pixel size of a photo upright, read from the file's header without decoding.
+    public static func imageSize(at url: URL) -> CGSize? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Double,
+              let height = properties[kCGImagePropertyPixelHeight] as? Double
+        else { return nil }
+        // Orientations 5 to 8 turn the photo by 90°.
+        let turned = (properties[kCGImagePropertyOrientation] as? Int).map { (5...8).contains($0) } ?? false
+        return turned ? CGSize(width: height, height: width) : CGSize(width: width, height: height)
+    }
+
+    private static func isRAW(_ url: URL) -> Bool {
+        UTType(filenameExtension: url.pathExtension)?.conforms(to: .rawImage) ?? false
+    }
+
+    private static let rawContext = CIContext()
+
+    /// A RAW developed at reduced scale: several times faster than ImageIO for a large sensor,
+    /// with the same look (ImageIO uses the same RAW engine).
+    private static func rawImage(at url: URL, maxPixelSize: Int) -> CGImage? {
+        guard let filter = CIRAWFilter(imageURL: url) else { return nil }
+        let longSide = max(filter.nativeSize.width, filter.nativeSize.height)
+        guard longSide > 0 else { return nil }
+        filter.scaleFactor = Float(min(Double(maxPixelSize) / longSide, 1))
+        guard let output = filter.outputImage, let space = CGColorSpace(name: CGColorSpace.displayP3) else { return nil }
+        return rawContext.createCGImage(output, from: output.extent.integral, format: .RGBA8, colorSpace: space)
     }
 
     /// First frame of a video, upright.

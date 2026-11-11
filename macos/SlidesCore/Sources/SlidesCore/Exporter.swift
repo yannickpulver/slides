@@ -45,8 +45,8 @@ public struct Exporter: Sendable {
         for slide in project.slides {
             try Task.checkCancellation()
             let layout = SlideLayout(slide: slide, format: project.format)
-            let images = await loadImages(for: slide)
-            let background = slide.style.backgroundImage.flatMap { MediaLoader.image(at: mediaURL($0)) }
+            let images = await loadImages(for: layout)
+            let background = loadBackground(for: layout)
 
             for part in 0..<slide.span {
                 let url = folder.appending(path: names[written.count])
@@ -73,25 +73,47 @@ public struct Exporter: Sendable {
     /// The frames of one slide as images, one per panorama part. Videos show their first frame.
     @concurrent
     public func render(slideAt index: Int) async -> [CGImage] {
-        let slide = project.slides[index]
-        let images = await loadImages(for: slide)
-        let background = slide.style.backgroundImage.flatMap { MediaLoader.image(at: mediaURL($0)) }
+        let layout = SlideLayout(slide: project.slides[index], format: project.format)
+        let images = await loadImages(for: layout)
+        let background = loadBackground(for: layout)
         let renderer = SlideRenderer(
-            layout: SlideLayout(slide: slide, format: project.format),
+            layout: layout,
             scale: Double(scale),
             images: images,
             background: background
         )
-        return (0..<slide.span).compactMap { renderer.render(part: $0) }
+        return (0..<layout.slide.span).compactMap { renderer.render(part: $0) }
     }
 
-    /// Full-size photos, plus video posters so a video slide has pixels before its first frame.
-    private func loadImages(for slide: Slide) async -> [String: CGImage] {
+    /// Photos decoded as large as they're drawn, plus video posters so a video slide has pixels before its first frame.
+    private func loadImages(for layout: SlideLayout) async -> [String: CGImage] {
+        // Long side each file is drawn at, .max = full size. A file in two slots takes the larger.
+        var sizes: [String: Int] = [:]
+        for (index, media) in layout.slide.slots.enumerated() {
+            guard let media, index < layout.slots.count else { continue }
+            let size = MediaLoader.imageSize(at: mediaURL(media.file)).flatMap { mediaSize in
+                drawnLongSide(layout.mediaRect(slot: index, mediaSize: mediaSize, crop: media.crop), mediaSize: mediaSize)
+            }
+            sizes[media.file] = max(sizes[media.file] ?? 0, size ?? .max)
+        }
         var images: [String: CGImage] = [:]
-        for media in slide.slots.compactMap(\.self) where images[media.file] == nil {
-            images[media.file] = await MediaLoader.preview(at: mediaURL(media.file))
+        for (file, size) in sizes {
+            images[file] = await MediaLoader.preview(at: mediaURL(file), maxPixelSize: size == .max ? nil : size)
         }
         return images
+    }
+
+    private func loadBackground(for layout: SlideLayout) -> CGImage? {
+        guard let file = layout.slide.style.backgroundImage else { return nil }
+        let url = mediaURL(file)
+        let size = MediaLoader.imageSize(at: url).flatMap { drawnLongSide(layout.backgroundRect(imageSize: $0), mediaSize: $0) }
+        return MediaLoader.image(at: url, maxPixelSize: size)
+    }
+
+    /// Pixels on the long side of `rect` at the export scale, or nil when that's the full photo anyway.
+    private func drawnLongSide(_ rect: CGRect, mediaSize: CGSize) -> Int? {
+        let drawn = Int((max(rect.width, rect.height) * Double(scale)).rounded(.up))
+        return drawn < Int(max(mediaSize.width, mediaSize.height)) ? drawn : nil
     }
 
     public static func pngData(_ image: CGImage) -> Data? {
