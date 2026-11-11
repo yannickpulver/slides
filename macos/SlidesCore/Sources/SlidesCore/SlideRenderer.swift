@@ -58,13 +58,18 @@ public final class SlideRenderer {
             context.saveGState()
             context.clip(to: visible)
             Self.draw(image, in: layout.mediaRect(slot: index, mediaSize: mediaSize, crop: media.crop), context: context)
-            if let edge = slide.style.filmEdge {
-                let rect = layout.filmEdgeRect(slot: index, mediaSize: mediaSize, crop: media.crop)
-                if !rect.isEmpty, let mask = FilmEdgeCache.shared.image(edge, landscape: rect.width > rect.height) {
-                    Self.draw(mask, in: rect, context: context)
-                }
-            }
             context.restoreGState()
+        }
+
+        if let edge = slide.style.filmEdge {
+            var sizes: [Int: CGSize] = [:]
+            for (index, media) in slide.slots.enumerated() {
+                if let media, let image = images[media.file] { sizes[index] = CGSize(width: image.width, height: image.height) }
+            }
+            let rect = layout.filmEdgeRect(mediaSizes: sizes)
+            if !rect.isEmpty, let mask = FilmEdgeCache.shared.image(edge, landscape: rect.width > rect.height) {
+                Self.draw(mask, in: rect, context: context)
+            }
         }
 
         for box in slide.texts {

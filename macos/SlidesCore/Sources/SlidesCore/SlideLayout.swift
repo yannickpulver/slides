@@ -25,21 +25,26 @@ public struct SlideLayout: Sendable {
         CGRect(x: format.width * Double(index), y: 0, width: format.width, height: format.height)
     }
 
-    /// Slot areas, top to bottom, with the gap between them.
+    /// The canvas minus the border: the border runs once around the whole slide.
+    public var content: CGRect {
+        let border = min(clamp(slide.style.border, 0, SlideStyle.maxBorder), canvas.width / 2 - 0.5, canvas.height / 2 - 0.5)
+        return canvas.insetBy(dx: max(border, 0), dy: max(border, 0))
+    }
+
+    /// Slot areas inside `content`, top to bottom, with the gap between them.
     public var slots: [CGRect] {
+        let area = content
         let count = slide.layout.slotCount
-        let gap = count > 1 ? clamp(slide.style.gap, 0, SlideStyle.maxGap) : 0
-        let height = (canvas.height - gap * Double(count - 1)) / Double(count)
+        let gap = count > 1 ? min(clamp(slide.style.gap, 0, SlideStyle.maxGap), area.height / Double(count - 1) - 1) : 0
+        let height = (area.height - gap * Double(count - 1)) / Double(count)
         return (0..<count).map { i in
-            CGRect(x: 0, y: Double(i) * (height + gap), width: canvas.width, height: height)
+            CGRect(x: area.minX, y: area.minY + Double(i) * (height + gap), width: area.width, height: height)
         }
     }
 
-    /// Part of a slot the photo may cover: the slot minus the border.
+    /// Part of the slide the photo in a slot may cover.
     public func visibleArea(slot index: Int) -> CGRect {
-        let slot = slots[index]
-        let border = min(clamp(slide.style.border, 0, SlideStyle.maxBorder), slot.width / 2 - 0.5, slot.height / 2 - 0.5)
-        return slot.insetBy(dx: max(border, 0), dy: max(border, 0))
+        slots[index]
     }
 
     /// Where the photo is drawn, before clipping to `visibleArea`.
@@ -47,9 +52,14 @@ public struct SlideLayout: Sendable {
         Self.mediaRect(in: visibleArea(slot: index), mediaSize: mediaSize, fit: slide.style.fit, crop: crop)
     }
 
-    /// Visible part of the photo, which the film edge covers.
-    public func filmEdgeRect(slot index: Int, mediaSize: CGSize, crop: Crop) -> CGRect {
-        mediaRect(slot: index, mediaSize: mediaSize, crop: crop).intersection(visibleArea(slot: index))
+    /// Where the film edge goes: once around the visible parts of all photos together.
+    /// `mediaSizes` maps a slot index to its photo's pixel size; slots without a size are skipped.
+    public func filmEdgeRect(mediaSizes: [Int: CGSize]) -> CGRect {
+        mediaSizes.reduce(CGRect.null) { union, entry in
+            guard entry.key < slots.count, entry.key < slide.slots.count, let media = slide.slots[entry.key] else { return union }
+            let visible = mediaRect(slot: entry.key, mediaSize: entry.value, crop: media.crop).intersection(visibleArea(slot: entry.key))
+            return union.union(visible)
+        }
     }
 
     /// Background image covering the whole canvas, centered.
