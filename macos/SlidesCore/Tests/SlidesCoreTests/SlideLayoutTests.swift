@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Testing
 @testable import SlidesCore
 
@@ -41,6 +42,35 @@ struct SlideLayoutTests {
         #expect(single[3].target.width == panorama[3].target.width)
         #expect(panorama[1].target.width == 1536 - 2 * single[0].target.width)
         #expect(panorama.last!.target.maxX == 1536)
+    }
+
+    @Test func rotationInFullFitsTheTurnedPhoto() {
+        let area = CGRect(x: 0, y: 0, width: 768, height: 1024)
+        let rect = SlideLayout.mediaRect(in: area, mediaSize: CGSize(width: 400, height: 400), fit: .full, crop: Crop(angle: 45))
+        let bounds = SlideLayout.turnedBounds(rect, angle: 45)
+        #expect(abs(bounds.width - 768) < 0.001)
+        #expect(area.insetBy(dx: -0.001, dy: -0.001).contains(bounds))
+    }
+
+    @Test func clampedCropKeepsTheAngleWithinRange() {
+        let area = CGRect(x: 0, y: 0, width: 768, height: 1024)
+        let crop = SlideLayout.clampedCrop(Crop(x: 5, y: 0, zoom: 1, angle: 90), in: area, mediaSize: CGSize(width: 300, height: 400))
+        #expect(crop.angle == Crop.maxAngle)
+        // At zoom 1 the turned photo just covers the slot along its own axes, so a sideways
+        // pan has room only across the shorter side's overhang.
+        #expect(abs(crop.x) < 0.5)
+    }
+
+    @Test func cropWithoutAngleDecodesUpright() throws {
+        let crop = try JSONDecoder().decode(Crop.self, from: Data(#"{"x":0.1,"y":0,"zoom":2}"#.utf8))
+        #expect(crop == Crop(x: 0.1, y: 0, zoom: 2, angle: 0))
+    }
+
+    @Test func layoutChangeKeepsTheRotation() {
+        var slide = Slide()
+        slide.place([Media(file: "a", kind: .image, crop: Crop(x: 0.2, y: 0, zoom: 2, angle: 3.5))], at: nil)
+        slide.choose(.two)
+        #expect(slide.slots[0]?.crop == Crop(angle: 3.5))
     }
 
     @Test func panoramaCanvasCoversAllParts() {

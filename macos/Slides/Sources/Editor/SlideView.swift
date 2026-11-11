@@ -70,8 +70,10 @@ struct SlideView: View {
 
 extension View {
     /// Places a view at `rect` inside a top-leading `ZStack`.
-    func placed(at rect: CGRect) -> some View {
+    /// Sized to `rect`, turned clockwise by `angle` degrees around its center.
+    func placed(at rect: CGRect, angle: Double = 0) -> some View {
         frame(width: max(rect.width, 0), height: max(rect.height, 0))
+            .rotationEffect(.degrees(angle))
             .offset(x: rect.minX, y: rect.minY)
     }
 }

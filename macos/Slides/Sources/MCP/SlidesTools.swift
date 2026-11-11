@@ -60,12 +60,13 @@ struct SlidesTools {
             "slot": integer("Slot to start at, 1 = top. Replaces what's there. Default: the first empty slot."),
         ], required: ["paths"]),
         tool("remove_media", "Empties a slot.", ["slide": slideArg, "slot": slotArg], required: ["slot"]),
-        tool("set_crop", "Pans and zooms a photo in its slot (fit: fill). Missing values stay as they are.", [
+        tool("set_crop", "Pans, zooms and rotates a photo in its slot. Pan and zoom need fit: fill; rotation works in both fits. Missing values stay as they are.", [
             "slide": slideArg,
             "slot": slotArg,
             "x": number("Horizontal shift as a share of the slot width, about -0.5...0.5. Positive moves the photo right."),
             "y": number("Vertical shift as a share of the slot height, about -0.5...0.5. Positive moves the photo down."),
             "zoom": number("1 = photo just covers the slot, up to \(Int(Crop.maxZoom))."),
+            "angle": number("Rotation in degrees, clockwise, -\(Int(Crop.maxAngle))...\(Int(Crop.maxAngle)). Decimals allowed, e.g. 1.5 to straighten a horizon. In fill the photo grows so it still covers the slot."),
         ], required: ["slot"]),
         tool("render_slide", "Renders a slide as PNG at 1x (768 × 1024 for 4:3), one image per panorama frame. Videos show their first frame.", [
             "slide": slideArg,
@@ -244,6 +245,7 @@ struct SlidesTools {
             if let x = args.double("x") { crop.x = min(max(x, -1), 1) }
             if let y = args.double("y") { crop.y = min(max(y, -1), 1) }
             if let zoom = args.double("zoom") { crop.zoom = min(max(zoom, 1), Crop.maxZoom) }
+            if let angle = args.double("angle") { crop.angle = min(max(angle, -Crop.maxAngle), Crop.maxAngle) }
             editor.setCrop(crop, slot: slot, in: id)
             return try projectState()
 
@@ -474,7 +476,7 @@ struct SlidesTools {
                         return [
                             "file": media.file,
                             "kind": media.kind.rawValue,
-                            "crop": ["x": media.crop.x, "y": media.crop.y, "zoom": media.crop.zoom],
+                            "crop": ["x": media.crop.x, "y": media.crop.y, "zoom": media.crop.zoom, "angle": media.crop.angle],
                         ] as [String: Any]
                     },
                     "style": [

@@ -13,6 +13,7 @@ struct SlotView: View {
     @State private var hovering = false
     @State private var dropTargeted = false
     @State private var gestureStart: Crop?
+    @State private var rotating = false
     @State private var playing = false
 
     private var media: Media? { slide.slots[index] }
@@ -58,10 +59,10 @@ struct SlotView: View {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.high)
-                    .placed(at: mediaRect)
+                    .placed(at: mediaRect, angle: media.crop.angle)
                 if media.kind == .video, interactive {
                     VideoLayer(url: url, playing: playing)
-                        .placed(at: mediaRect)
+                        .placed(at: mediaRect, angle: media.crop.angle)
                         .allowsHitTesting(false)
                 }
             }
@@ -80,10 +81,26 @@ struct SlotView: View {
             },
             onEnd: { gestureStart = nil }
         ))
+        .modifier(RotateGestures(
+            enabled: interactive && size != nil,
+            onChange: { degrees in
+                guard let size else { return }
+                rotate(media, size: size) { $0 + degrees }
+            },
+            onEnd: endRotation
+        ))
         .onTapGesture {
             if media.kind == .video { playing.toggle() }
         }
         .offset(x: visibleRect.minX, y: visibleRect.minY)
+
+        if rotating {
+            StraightenGrid()
+                .frame(width: visibleRect.width, height: visibleRect.height)
+                .clipped()
+                .allowsHitTesting(false)
+                .offset(x: visibleRect.minX, y: visibleRect.minY)
+        }
 
         if interactive, hovering || gestureStart != nil {
             if slide.style.fit == .fill, let size {
@@ -97,6 +114,19 @@ struct SlotView: View {
                     gestureStart = nil
                 }
             }
+            if let size {
+                RotateHandle(angle: media.crop.angle) { points in
+                    // 0.1° per point: fine enough to straighten a horizon.
+                    rotate(media, size: size) { $0 + points / 10 }
+                } onEnd: {
+                    endRotation()
+                } onReset: {
+                    rotate(media, size: size) { _ in 0 }
+                    endRotation()
+                }
+                .frame(width: visibleRect.width, height: visibleRect.height, alignment: .bottom)
+                .offset(x: visibleRect.minX, y: visibleRect.minY)
+            }
             SlotButtons(
                 isVideo: media.kind == .video,
                 playing: playing,
@@ -106,6 +136,22 @@ struct SlotView: View {
             )
             .frame(width: slotRect.width, height: slotRect.height, alignment: .topTrailing)
         }
+    }
+
+    /// Sets the angle from the one at gesture start. In fill the pan is clamped again, so the photo keeps covering the slot.
+    private func rotate(_ media: Media, size: CGSize, _ angle: (Double) -> Double) {
+        let start = gestureStart ?? media.crop
+        if gestureStart == nil { gestureStart = start }
+        rotating = true
+        var crop = start
+        crop.angle = min(max((angle(start.angle) * 10).rounded() / 10, -Crop.maxAngle), Crop.maxAngle)
+        if slide.style.fit == .fill { crop = SlideLayout.clampedCrop(crop, in: visible, mediaSize: size) }
+        editor?.setCrop(crop, slot: index, in: slide.id)
+    }
+
+    private func endRotation() {
+        gestureStart = nil
+        rotating = false
     }
 
     // MARK: - Empty
@@ -183,6 +229,82 @@ private struct CropGestures: ViewModifier {
                 )
         } else {
             content
+        }
+    }
+}
+
+/// Two-finger rotation on the trackpad, in fill and full.
+private struct RotateGestures: ViewModifier {
+    let enabled: Bool
+    /// Receives the degrees turned since the gesture started.
+    let onChange: (Double) -> Void
+    let onEnd: () -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.simultaneousGesture(
+                RotateGesture()
+                    .onChanged { value in onChange(value.rotation.degrees) }
+                    .onEnded { _ in onEnd() }
+            )
+        } else {
+            content
+        }
+    }
+}
+
+/// Pill at the bottom of a photo: drag sideways to rotate, double-click to straighten.
+private struct RotateHandle: View {
+    let angle: Double
+    /// Receives the horizontal drag distance in points since the drag started.
+    let onDrag: (Double) -> Void
+    let onEnd: () -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        HStack(spacing: 5) {
+            TablerIcon("rotate-clockwise", size: 13)
+            Text(String(format: "%.1f°", angle))
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 9)
+        .frame(height: 26)
+        .background(.black.opacity(0.55), in: Capsule())
+        .contentShape(Capsule())
+        .gesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { value in onDrag(value.translation.width) }
+                .onEnded { _ in onEnd() }
+        )
+        .onTapGesture(count: 2, perform: onReset)
+        .pointerStyle(.columnResize)
+        .help("Drag sideways to rotate, double-click to straighten")
+        .padding(8)
+    }
+}
+
+/// Grid over the photo while it turns: thirds, and finer lines to line up a horizon.
+private struct StraightenGrid: View {
+    var body: some View {
+        Canvas { context, size in
+            let step = 24.0
+            var fine = Path()
+            var x = step
+            while x < size.width { fine.move(to: CGPoint(x: x, y: 0)); fine.addLine(to: CGPoint(x: x, y: size.height)); x += step }
+            var y = step
+            while y < size.height { fine.move(to: CGPoint(x: 0, y: y)); fine.addLine(to: CGPoint(x: size.width, y: y)); y += step }
+            context.stroke(fine, with: .color(.white.opacity(0.25)), lineWidth: 0.5)
+
+            var thirds = Path()
+            for i in 1...2 {
+                let tx = size.width * Double(i) / 3, ty = size.height * Double(i) / 3
+                thirds.move(to: CGPoint(x: tx, y: 0)); thirds.addLine(to: CGPoint(x: tx, y: size.height))
+                thirds.move(to: CGPoint(x: 0, y: ty)); thirds.addLine(to: CGPoint(x: size.width, y: ty))
+            }
+            context.stroke(thirds, with: .color(.black.opacity(0.3)), lineWidth: 2)
+            context.stroke(thirds, with: .color(.white.opacity(0.8)), lineWidth: 1)
         }
     }
 }

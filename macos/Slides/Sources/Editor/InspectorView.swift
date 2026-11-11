@@ -377,6 +377,15 @@ private struct PhotoCard: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
+            ForEach(slide.slots.indices, id: \.self) { slot in
+                if let media = slide.slots[slot] {
+                    AngleSlider(
+                        label: slide.mediaCount > 1 ? "Rotate \(slot + 1)" : "Rotate",
+                        value: media.crop.angle,
+                        onChange: { editor.setAngle($0, slot: slot) }
+                    )
+                }
+            }
             PixelSlider(label: "Border", value: slide.style.border, range: 0...SlideStyle.maxBorder, onChange: { editor.setBorder($0) })
             VStack(alignment: .leading, spacing: 6) {
                 Text("Film edge").foregroundStyle(.secondary)
@@ -389,6 +398,27 @@ private struct PhotoCard: View {
                 .buttonSizing(.flexible)
                 .frame(maxWidth: .infinity)
             }
+        }
+    }
+}
+
+/// Fine rotation: the slider moves in 0.1° steps, the field takes any value. Right-click resets.
+private struct AngleSlider: View {
+    let label: String
+    let value: Double
+    let onChange: (Double) -> Void
+
+    var body: some View {
+        Row(label: label) {
+            Slider(value: Binding(get: { value }, set: { onChange(($0 * 10).rounded() / 10) }), in: -Crop.maxAngle...Crop.maxAngle)
+                .controlSize(.small)
+            NumberField(value: value, placeholder: "0", suffix: "°", help: "Rotation in degrees, clockwise, ±\(Int(Crop.maxAngle))") { value in
+                onChange(value ?? 0)
+            }
+            .frame(width: 64)
+        }
+        .contextMenu {
+            Button("Reset Rotation") { onChange(0) }.disabled(value == 0)
         }
     }
 }
