@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// Geometry of a slide in 1x pixels, y pointing down.
 ///
@@ -47,7 +48,7 @@ public struct SlideLayout: Sendable {
         slots[index]
     }
 
-    /// Where the photo is drawn, before clipping to `visibleArea`.
+    /// Where the photo is drawn, before turning by `crop.angle` around its center and clipping to `visibleArea`.
     public func mediaRect(slot index: Int, mediaSize: CGSize, crop: Crop) -> CGRect {
         Self.mediaRect(in: visibleArea(slot: index), mediaSize: mediaSize, fit: slide.style.fit, crop: crop)
     }
@@ -57,7 +58,8 @@ public struct SlideLayout: Sendable {
     public func filmEdgeRect(mediaSizes: [Int: CGSize]) -> CGRect {
         mediaSizes.reduce(CGRect.null) { union, entry in
             guard entry.key < slots.count, entry.key < slide.slots.count, let media = slide.slots[entry.key] else { return union }
-            let visible = mediaRect(slot: entry.key, mediaSize: entry.value, crop: media.crop).intersection(visibleArea(slot: entry.key))
+            let rect = mediaRect(slot: entry.key, mediaSize: entry.value, crop: media.crop)
+            let visible = Self.turnedBounds(rect, angle: media.crop.angle).intersection(visibleArea(slot: entry.key))
             return union.union(visible)
         }
     }
@@ -74,25 +76,61 @@ public struct SlideLayout: Sendable {
         let h = max(mediaSize.height, 1)
         switch fit {
         case .full:
-            let scale = min(area.width / w, area.height / h)
+            // The turned photo fits inside the slot.
+            let (c, s) = absTurn(crop.angle)
+            let scale = min(area.width / (w * c + h * s), area.height / (w * s + h * c))
             return centered(in: area, width: w * scale, height: h * scale)
         case .fill:
-            let scale = max(area.width / w, area.height / h) * clamp(crop.zoom, 1, Crop.maxZoom)
-            let rect = centered(in: area, width: w * scale, height: h * scale)
-            // Never shift past the overhang, so the photo covers the slot even after the slot changed shape.
-            let maxX = max(rect.width - area.width, 0) / 2
-            let maxY = max(rect.height - area.height, 0) / 2
-            return rect.offsetBy(dx: clamp(crop.x * area.width, -maxX, maxX), dy: clamp(crop.y * area.height, -maxY, maxY))
+            let fill = fillPlacement(in: area, mediaSize: mediaSize, crop: crop)
+            return fill.rect.offsetBy(dx: fill.shift.x, dy: fill.shift.y)
         }
     }
 
-    /// Keeps the photo covering `area`: zoom within 1...max, shift within the overhang.
+    /// Keeps the photo covering `area`: zoom within 1...max, shift within the overhang, angle within ±max.
     public static func clampedCrop(_ crop: Crop, in area: CGRect, mediaSize: CGSize) -> Crop {
-        let zoom = clamp(crop.zoom, 1, Crop.maxZoom)
-        let rect = mediaRect(in: area, mediaSize: mediaSize, fit: .fill, crop: Crop(zoom: zoom))
-        let maxX = max(rect.width - area.width, 0) / 2 / max(area.width, 1)
-        let maxY = max(rect.height - area.height, 0) / 2 / max(area.height, 1)
-        return Crop(x: clamp(crop.x, -maxX, maxX), y: clamp(crop.y, -maxY, maxY), zoom: zoom)
+        var result = crop
+        result.zoom = clamp(crop.zoom, 1, Crop.maxZoom)
+        result.angle = clamp(crop.angle, -Crop.maxAngle, Crop.maxAngle)
+        let shift = fillPlacement(in: area, mediaSize: mediaSize, crop: result).shift
+        result.x = shift.x / max(area.width, 1)
+        result.y = shift.y / max(area.height, 1)
+        return result
+    }
+
+    /// Bounding box of `rect` turned by `angle` degrees around its center.
+    public static func turnedBounds(_ rect: CGRect, angle: Double) -> CGRect {
+        let (c, s) = absTurn(angle)
+        return centered(in: rect, width: rect.width * c + rect.height * s, height: rect.width * s + rect.height * c)
+    }
+
+    /// Fill mode: the photo rect centered on the slot, and its shift from there.
+    ///
+    /// The slot, seen in the turned photo's axes, has to stay inside the photo. So the photo grows
+    /// to cover the slot's turned bounding box, and the shift is clamped along the photo's axes.
+    private static func fillPlacement(in area: CGRect, mediaSize: CGSize, crop: Crop) -> (rect: CGRect, shift: CGPoint) {
+        let w = max(mediaSize.width, 1)
+        let h = max(mediaSize.height, 1)
+        let (c, s) = absTurn(crop.angle)
+        let needW = area.width * c + area.height * s
+        let needH = area.width * s + area.height * c
+        let scale = max(needW / w, needH / h) * clamp(crop.zoom, 1, Crop.maxZoom)
+        let rect = centered(in: area, width: w * scale, height: h * scale)
+        // Never shift past the overhang, so the photo covers the slot even after the slot changed shape.
+        let maxX = max(rect.width - needW, 0) / 2
+        let maxY = max(rect.height - needH, 0) / 2
+        let radians = clamp(crop.angle, -Crop.maxAngle, Crop.maxAngle) * .pi / 180
+        let (cos, sin) = (Foundation.cos(radians), Foundation.sin(radians))
+        let dx = crop.x * area.width, dy = crop.y * area.height
+        // Into the photo's axes, clamp, and back.
+        let u = clamp(dx * cos + dy * sin, -maxX, maxX)
+        let v = clamp(-dx * sin + dy * cos, -maxY, maxY)
+        return (rect, CGPoint(x: u * cos - v * sin, y: u * sin + v * cos))
+    }
+
+    /// |cos| and |sin| of a clamped angle in degrees.
+    private static func absTurn(_ angle: Double) -> (Double, Double) {
+        let radians = clamp(angle, -Crop.maxAngle, Crop.maxAngle) * .pi / 180
+        return (abs(Foundation.cos(radians)), abs(Foundation.sin(radians)))
     }
 
     public static func coverRect(in area: CGRect, size: CGSize) -> CGRect {

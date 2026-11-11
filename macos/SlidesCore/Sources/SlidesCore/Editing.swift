@@ -56,9 +56,10 @@ extension Slide {
         resetCrops()
     }
 
+    /// Resets pan and zoom; the rotation stays, it belongs to the photo, not the slot.
     private mutating func resetCrops() {
         slots = slots.map { media in
-            media.map { var copy = $0; copy.crop = Crop(); return copy }
+            media.map { var copy = $0; copy.crop = Crop(angle: copy.crop.angle); return copy }
         }
     }
 }

@@ -104,20 +104,37 @@ public struct Media: Codable, Equatable, Sendable {
     }
 }
 
-/// Pan and zoom of a photo in fill mode.
+/// Pan, zoom and rotation of a photo. Pan and zoom apply in fill mode, rotation in both.
 public struct Crop: Codable, Equatable, Sendable {
     public static let maxZoom = 5.0
+    public static let maxAngle = 45.0
 
     /// Shift of the photo center, as a share of the visible slot area (-0.5...0.5 typical).
     public var x = 0.0
     public var y = 0.0
     /// 1 = photo just covers the slot.
     public var zoom = 1.0
+    /// Rotation in degrees, clockwise, within ±`maxAngle`.
+    public var angle = 0.0
 
-    public init(x: Double = 0, y: Double = 0, zoom: Double = 1) {
+    public init(x: Double = 0, y: Double = 0, zoom: Double = 1, angle: Double = 0) {
         self.x = x
         self.y = y
         self.zoom = zoom
+        self.angle = angle
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case x, y, zoom, angle
+    }
+
+    /// Projects from before rotation have no `angle`.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        x = try c.decode(Double.self, forKey: .x)
+        y = try c.decode(Double.self, forKey: .y)
+        zoom = try c.decode(Double.self, forKey: .zoom)
+        angle = try c.decodeIfPresent(Double.self, forKey: .angle) ?? 0
     }
 }
 

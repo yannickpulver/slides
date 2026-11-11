@@ -22,6 +22,39 @@ struct RenderTests {
         #expect(image.pixel(x: 384, y: 512) == (255, 0, 0))
     }
 
+    @Test func rotationTurnsClockwise() {
+        var slide = Slide()
+        slide.place([Media(file: "halves", kind: .image, crop: Crop(angle: 30))], at: nil)
+        let renderer = SlideRenderer(
+            layout: SlideLayout(slide: slide, format: .portrait4x3),
+            scale: 1,
+            images: ["halves": Fixtures.halves(width: 400, height: 400)],
+            background: nil
+        )
+        let image = renderer.render(part: 0)!
+        // The red/blue seam tilts clockwise: red above the center, blue below.
+        #expect(image.pixel(x: 384, y: 312) == (255, 0, 0))
+        #expect(image.pixel(x: 384, y: 712) == (0, 0, 255))
+    }
+
+    @Test func rotatedPhotoStillCoversTheSlotWhenPannedToTheEdge() {
+        for angle in [-45.0, -7.5, 0.3, 12, 45] {
+            var slide = Slide()
+            slide.place([Media(file: "red", kind: .image, crop: Crop(x: 1, y: -1, zoom: 1.2, angle: angle))], at: nil)
+            slide.style.color = .black
+            let renderer = SlideRenderer(
+                layout: SlideLayout(slide: slide, format: .portrait4x3),
+                scale: 1,
+                images: ["red": Fixtures.image(width: 600, height: 400, color: RGB(r: 1, g: 0, b: 0))],
+                background: nil
+            )
+            let image = renderer.render(part: 0)!
+            for (x, y) in [(2, 2), (765, 2), (2, 1021), (765, 1021)] {
+                #expect(image.pixel(x: x, y: y) == (255, 0, 0), "angle \(angle) at \(x),\(y)")
+            }
+        }
+    }
+
     @Test func scaleMultipliesPixels() {
         let renderer = SlideRenderer(layout: SlideLayout(slide: Slide(), format: .portrait16x9), scale: 2, images: [:], background: nil)
         let image = renderer.render(part: 0)!

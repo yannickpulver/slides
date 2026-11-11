@@ -96,6 +96,11 @@ final class EditorModel {
         editSlide(slideID, "crop-\(slideID)-\(slot)") { $0.slots[slot]?.crop = crop }
     }
 
+    func setAngle(_ angle: Double, slot: Int, in slideID: Slide.ID? = nil) {
+        let angle = min(max(angle, -Crop.maxAngle), Crop.maxAngle)
+        editSlide(slideID, "angle-\(slideID ?? selectedSlideID)-\(slot)") { $0.slots[slot]?.crop.angle = angle }
+    }
+
     // MARK: - Slides
 
     func select(_ id: Slide.ID) {
