@@ -179,7 +179,10 @@ public struct RGB: Codable, Equatable, Hashable, Sendable {
     public static let black = RGB(r: 0, g: 0, b: 0)
 }
 
-/// Thin film-gate edge stretched over the visible photo (from the "Film mask/thin" set in Figma).
+/// Thin film-gate edge around the visible photos (from the "Film mask/thin" set in Figma).
+///
+/// The mask is drawn in nine pieces: corners and edge thickness keep the size they have
+/// on one frame, only the edges grow. So a panorama gets the same edge as a single frame.
 public enum FilmEdge: String, Codable, CaseIterable, Sendable {
     case gateWhite = "gate_white"
     case gateBlack = "gate_black"
@@ -191,13 +194,39 @@ public enum FilmEdge: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// Bundled PNG. `preview` is a 1024 px copy for the editor.
-    public func url(landscape: Bool, preview: Bool) -> URL? {
-        let name = "\(rawValue)_\(landscape ? "landscape" : "portrait")"
-        return Bundle.module.url(
-            forResource: name,
+    /// Bundled portrait mask for one 4:3 frame. `preview` is a 1024 px copy for the editor.
+    public func url(preview: Bool) -> URL? {
+        Bundle.module.url(
+            forResource: "\(rawValue)_portrait",
             withExtension: "png",
             subdirectory: "FilmEdges/\(preview ? "preview" : "full")"
         )
+    }
+
+    /// Share of the mask height that holds a corner. The edge itself is about 1 %.
+    static let cap = 0.05
+
+    /// Pieces to draw the mask over `rect`: `source` in mask pixels (y down), `target` in `rect`'s units.
+    ///
+    /// `frameHeight` is one frame's height in `rect`'s units; it sets how thick corners and edges are.
+    public static func pieces(maskSize: CGSize, in rect: CGRect, frameHeight: Double) -> [(source: CGRect, target: CGRect)] {
+        let c = (maskSize.height * cap).rounded()
+        guard rect.width > 0, rect.height > 0, maskSize.width > 2 * c, maskSize.height > 2 * c else { return [] }
+        // Corners as on one frame, but never more than half the rect.
+        let t = min(c * frameHeight / maskSize.height, rect.width / 2, rect.height / 2)
+        let mw = maskSize.width, mh = maskSize.height
+        let sx = [0, c, mw - c, mw]
+        let sy = [0, c, mh - c, mh]
+        let tx = [rect.minX, rect.minX + t, rect.maxX - t, rect.maxX]
+        let ty = [rect.minY, rect.minY + t, rect.maxY - t, rect.maxY]
+        var result: [(CGRect, CGRect)] = []
+        for row in 0..<3 {
+            for column in 0..<3 where !(row == 1 && column == 1) {
+                let source = CGRect(x: sx[column], y: sy[row], width: sx[column + 1] - sx[column], height: sy[row + 1] - sy[row])
+                let target = CGRect(x: tx[column], y: ty[row], width: tx[column + 1] - tx[column], height: ty[row + 1] - ty[row])
+                if target.width > 0, target.height > 0 { result.append((source, target)) }
+            }
+        }
+        return result
     }
 }

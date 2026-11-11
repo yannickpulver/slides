@@ -67,8 +67,11 @@ public final class SlideRenderer {
                 if let media, let image = images[media.file] { sizes[index] = CGSize(width: image.width, height: image.height) }
             }
             let rect = layout.filmEdgeRect(mediaSizes: sizes)
-            if !rect.isEmpty, let mask = FilmEdgeCache.shared.image(edge, landscape: rect.width > rect.height) {
-                Self.draw(mask, in: rect, context: context)
+            if !rect.isEmpty, let mask = FilmEdgeCache.shared.image(edge) {
+                let maskSize = CGSize(width: mask.width, height: mask.height)
+                for piece in FilmEdge.pieces(maskSize: maskSize, in: rect, frameHeight: layout.format.height) {
+                    if let part = mask.cropping(to: piece.source) { Self.draw(part, in: piece.target, context: context) }
+                }
             }
         }
 
@@ -151,14 +154,12 @@ final class FilmEdgeCache: @unchecked Sendable {
     private let lock = NSLock()
     private var images: [String: CGImage] = [:]
 
-    func image(_ edge: FilmEdge, landscape: Bool) -> CGImage? {
-        let key = "\(edge.rawValue)-\(landscape)"
+    func image(_ edge: FilmEdge) -> CGImage? {
         lock.lock()
         defer { lock.unlock() }
-        if let image = images[key] { return image }
-        guard let url = edge.url(landscape: landscape, preview: false),
-              let image = MediaLoader.image(at: url) else { return nil }
-        images[key] = image
+        if let image = images[edge.rawValue] { return image }
+        guard let url = edge.url(preview: false), let image = MediaLoader.image(at: url) else { return nil }
+        images[edge.rawValue] = image
         return image
     }
 }

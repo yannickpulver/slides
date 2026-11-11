@@ -77,7 +77,7 @@ struct RenderTests {
         // The black gate edge covers the corner of the red photo, the center stays red.
         #expect(image.pixel(x: 2, y: 2).r < 60)
         #expect(image.pixel(x: 384, y: 512) == (255, 0, 0))
-        #expect(FilmEdge.allCases.allSatisfy { $0.url(landscape: true, preview: true) != nil && $0.url(landscape: false, preview: false) != nil })
+        #expect(FilmEdge.allCases.allSatisfy { $0.url(preview: true) != nil && $0.url(preview: false) != nil })
     }
 }
 
