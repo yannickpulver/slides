@@ -14,68 +14,7 @@ struct EditorView: View {
     @FocusState private var keysFocused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            SlideCanvas(editor: editor)
-            Filmstrip(editor: editor)
-        }
-        .focusable()
-        .focusEffectDisabled()
-        .focused($keysFocused)
-        .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow]) { press in
-            guard !typing else { return .ignored }
-            if let id = editor.selectedTextID {
-                // Arrows nudge the selected text, 10 px with ⇧.
-                let step = press.modifiers.contains(.shift) ? 10.0 : 1.0
-                let (dx, dy) = switch press.key {
-                case .leftArrow: (-step, 0.0)
-                case .rightArrow: (step, 0.0)
-                case .upArrow: (0.0, -step)
-                default: (0.0, step)
-                }
-                editor.updateText(id, "nudge") { $0.x += dx; $0.y += dy }
-            } else if press.key == .leftArrow || press.key == .upArrow {
-                editor.selectPrevious()
-            } else {
-                editor.selectNext()
-            }
-            return .handled
-        }
-        .onKeyPress(.escape) {
-            guard !typing else { return .ignored }
-            if editor.placingText {
-                editor.placingText = false
-            } else if editor.selectedTextID != nil {
-                editor.selectText(nil)
-            } else {
-                onBack()
-            }
-            return .handled
-        }
-        .onKeyPress(.return) {
-            guard !typing, let id = editor.selectedTextID else { return .ignored }
-            editor.editText(id)
-            return .handled
-        }
-        .onKeyPress { press in
-            guard !typing else { return .ignored }
-            if press.characters == "t", press.modifiers.isEmpty {
-                toggleTextTool()
-                return .handled
-            }
-            // ⌫ arrives as U+007F on macOS, forward delete as `.deleteForward`.
-            guard press.key == .delete || press.key == .deleteForward || press.characters == "\u{7F}" else { return .ignored }
-            if let id = editor.selectedTextID {
-                editor.removeText(id)
-            } else {
-                deleteSelectedSlide()
-            }
-            return .handled
-        }
-        .onChange(of: editor.editingTextID) { _, id in
-            // While editing, the text field holds the keys; SwiftUI focus would take them back.
-            keysFocused = id == nil
-        }
-        .onChange(of: editor.selectedSlideID) { _, _ in keysFocused = true }
+        canvas
         .inspector(isPresented: $showInspector) {
             InspectorView(editor: editor)
                 .inspectorColumnWidth(min: 280, ideal: 300, max: 400)
@@ -149,6 +88,82 @@ struct EditorView: View {
         .onChange(of: editor.renaming) { _, renaming in
             if renaming { newName = editor.project.name }
         }
+    }
+
+    /// Canvas and filmstrip with the keyboard shortcuts. Split from `body`, which the
+    /// compiler can't type-check in time otherwise (Release, universal).
+    private var canvas: some View {
+        VStack(spacing: 0) {
+            SlideCanvas(editor: editor)
+            Filmstrip(editor: editor)
+        }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($keysFocused)
+        .onKeyPress(keys: [.leftArrow, .rightArrow, .upArrow, .downArrow], action: arrow)
+        .onKeyPress(.escape, action: escape)
+        .onKeyPress(.return, action: enter)
+        .onKeyPress(action: otherKey)
+        .onChange(of: editor.editingTextID) { _, id in
+            // While editing, the text field holds the keys; SwiftUI focus would take them back.
+            keysFocused = id == nil
+        }
+        .onChange(of: editor.selectedSlideID) { _, _ in keysFocused = true }
+    }
+
+    /// Arrows nudge the selected text (10 px with ⇧), otherwise switch slides.
+    private func arrow(_ press: KeyPress) -> KeyPress.Result {
+        guard !typing else { return .ignored }
+        if let id = editor.selectedTextID {
+            let step = press.modifiers.contains(.shift) ? 10.0 : 1.0
+            let (dx, dy) = switch press.key {
+            case .leftArrow: (-step, 0.0)
+            case .rightArrow: (step, 0.0)
+            case .upArrow: (0.0, -step)
+            default: (0.0, step)
+            }
+            editor.updateText(id, "nudge") { $0.x += dx; $0.y += dy }
+        } else if press.key == .leftArrow || press.key == .upArrow {
+            editor.selectPrevious()
+        } else {
+            editor.selectNext()
+        }
+        return .handled
+    }
+
+    private func escape() -> KeyPress.Result {
+        guard !typing else { return .ignored }
+        if editor.placingText {
+            editor.placingText = false
+        } else if editor.selectedTextID != nil {
+            editor.selectText(nil)
+        } else {
+            onBack()
+        }
+        return .handled
+    }
+
+    private func enter() -> KeyPress.Result {
+        guard !typing, let id = editor.selectedTextID else { return .ignored }
+        editor.editText(id)
+        return .handled
+    }
+
+    /// T toggles the text tool; ⌫ deletes the selected text, or else the slide.
+    private func otherKey(_ press: KeyPress) -> KeyPress.Result {
+        guard !typing else { return .ignored }
+        if press.characters == "t", press.modifiers.isEmpty {
+            toggleTextTool()
+            return .handled
+        }
+        // ⌫ arrives as U+007F on macOS, forward delete as `.deleteForward`.
+        guard press.key == .delete || press.key == .deleteForward || press.characters == "\u{7F}" else { return .ignored }
+        if let id = editor.selectedTextID {
+            editor.removeText(id)
+        } else {
+            deleteSelectedSlide()
+        }
+        return .handled
     }
 
     /// A text field has the keys (inline text, inspector fields): the shortcuts step aside.
