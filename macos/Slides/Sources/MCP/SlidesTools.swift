@@ -47,7 +47,7 @@ struct SlidesTools {
             "layout": integer("Photos stacked vertically: 1, 2 or 3. Sets span to 1."),
             "span": integer("Frames the slide covers: 1 = normal, 2...5 = panorama with one photo."),
             "fit": enumeration(["fill", "full"], "fill: photos cover their slot (pan and zoom apply). full: whole photo visible."),
-            "border": number("Inset around each photo in 1x pixels, 0...\(Int(SlideStyle.maxBorder))."),
+            "border": number("Margin around the whole slide in 1x pixels (once, not per photo), 0...\(Int(SlideStyle.maxBorder))."),
             "gap": number("Space between stacked photos in 1x pixels, 0...\(Int(SlideStyle.maxGap))."),
             "color": string("Background color as hex, e.g. #FFFFFF."),
             "background_image": string("Absolute path of a photo for a blurred background, or \"\" to remove it."),

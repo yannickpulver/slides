@@ -64,13 +64,6 @@ struct SlotView: View {
                         .placed(at: mediaRect)
                         .allowsHitTesting(false)
                 }
-                if let edge = slide.style.filmEdge {
-                    FilmEdgeImage(
-                        edge: edge,
-                        rect: layout.filmEdgeRect(slot: index, mediaSize: size, crop: media.crop).scaled(scale)
-                            .offsetBy(dx: -origin.x, dy: -origin.y)
-                    )
-                }
             }
         }
         .frame(width: visibleRect.width, height: visibleRect.height, alignment: .topLeading)

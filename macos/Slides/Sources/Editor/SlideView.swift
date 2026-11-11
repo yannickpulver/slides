@@ -30,6 +30,9 @@ struct SlideView: View {
                         mediaURL: mediaURL
                     )
                 }
+                if let edge = slide.style.filmEdge {
+                    FilmEdgeImage(edge: edge, rect: layout.filmEdgeRect(mediaSizes: mediaSizes).scaled(scale))
+                }
                 TextDrawing(texts: slide.texts, scale: scale, hidden: editor?.editingTextID)
                 if editor != nil, slide.isPanorama {
                     PanoramaCuts(layout: layout, scale: scale)
@@ -49,6 +52,17 @@ struct SlideView: View {
                 }
             }, isEnabled: editor != nil)
         }
+    }
+
+    /// Pixel sizes of the loaded photos by slot, for the film edge.
+    private var mediaSizes: [Int: CGSize] {
+        var sizes: [Int: CGSize] = [:]
+        for (index, media) in slide.slots.enumerated() {
+            if let media, let image = MediaCache.shared.image(for: mediaURL(media.file)) {
+                sizes[index] = CGSize(width: image.width, height: image.height)
+            }
+        }
+        return sizes
     }
 }
 

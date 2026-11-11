@@ -21,6 +21,16 @@ struct SlideLayoutTests {
         #expect(area == CGRect(x: 40, y: 40, width: 688, height: 944))
     }
 
+    @Test func borderRunsOnceAroundStackedPhotos() {
+        var slide = Slide()
+        slide.choose(.two)
+        slide.style.border = 40
+        slide.style.gap = 20
+        let slots = SlideLayout(slide: slide, format: .portrait4x3).slots
+        #expect(slots[0] == CGRect(x: 40, y: 40, width: 688, height: 462))
+        #expect(slots[1] == CGRect(x: 40, y: 522, width: 688, height: 462))
+    }
+
     @Test func panoramaCanvasCoversAllParts() {
         var slide = Slide()
         slide.choose(.single, span: 3)
@@ -66,11 +76,23 @@ struct SlideLayoutTests {
 
     @Test func filmEdgeCoversOnlyVisiblePhoto() {
         var slide = Slide()
+        slide.place([Media(file: "a", kind: .image)], at: nil)
         slide.style.fit = .full
         slide.style.border = 40
         let layout = SlideLayout(slide: slide, format: .portrait4x3)
-        let rect = layout.filmEdgeRect(slot: 0, mediaSize: CGSize(width: 2000, height: 1000), crop: Crop())
+        let rect = layout.filmEdgeRect(mediaSizes: [0: CGSize(width: 2000, height: 1000)])
         #expect(rect.width == 688)
         #expect(rect.height == 344)
+    }
+
+    @Test func filmEdgeRunsOnceAroundStackedPhotos() {
+        var slide = Slide()
+        slide.choose(.two)
+        slide.place([Media(file: "a", kind: .image), Media(file: "b", kind: .image)], at: nil)
+        slide.style.border = 40
+        slide.style.gap = 20
+        let size = CGSize(width: 1000, height: 1000)
+        let rect = SlideLayout(slide: slide, format: .portrait4x3).filmEdgeRect(mediaSizes: [0: size, 1: size])
+        #expect(rect == CGRect(x: 40, y: 40, width: 688, height: 944))
     }
 }
