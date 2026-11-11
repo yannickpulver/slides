@@ -21,6 +21,8 @@ struct SlideCanvas: View {
                 .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
         }
         .background(Color(nsColor: .underPageBackgroundColor))
+        .contentShape(Rectangle())
+        .onTapGesture { editor.selectText(nil) }
         .dropDestination(for: URL.self) { urls, _ in
             editor.drop(urls, slot: nil, in: editor.selectedSlideID)
             return true

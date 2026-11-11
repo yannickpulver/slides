@@ -30,12 +30,24 @@ struct SlideView: View {
                         mediaURL: mediaURL
                     )
                 }
+                TextDrawing(texts: slide.texts, scale: scale, hidden: editor?.editingTextID)
                 if editor != nil, slide.isPanorama {
                     PanoramaCuts(layout: layout, scale: scale)
+                }
+                if let editor {
+                    TextOverlay(editor: editor, slide: slide, layout: layout, scale: scale)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
             .clipped()
+            .simultaneousGesture(SpatialTapGesture().onEnded { value in
+                // A click next to the text ends editing and drops the selection, like in Figma.
+                guard let editor, editor.selectedTextID != nil else { return }
+                let point = CGPoint(x: value.location.x / scale, y: value.location.y / scale)
+                if !slide.texts.contains(where: { TextRenderer.rect(of: $0).insetBy(dx: -6 / scale, dy: -6 / scale).contains(point) }) {
+                    editor.selectText(nil)
+                }
+            }, isEnabled: editor != nil)
         }
     }
 }

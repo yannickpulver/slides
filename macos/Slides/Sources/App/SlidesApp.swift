@@ -18,6 +18,17 @@ struct SlidesApp: App {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates…") { updater.checkForUpdates() }
                     .disabled(!updater.canCheckForUpdates)
+                Button("Copy MCP Setup Command") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString("claude mcp add --transport http slides \(MCPServer.url)", forType: .string)
+                }
+                .help("Lets an agent like Claude Code control Slides while it runs")
+            }
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo") { app.undo() }
+                    .keyboardShortcut("z")
+                Button("Redo") { app.redo() }
+                    .keyboardShortcut("z", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .newItem) {
                 // In a project ⌘N adds a slide, so a new project moves to ⇧⌘N.

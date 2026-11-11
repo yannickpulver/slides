@@ -66,6 +66,10 @@ public final class SlideRenderer {
             }
             context.restoreGState()
         }
+
+        for box in slide.texts {
+            TextRenderer.draw(box, in: context)
+        }
     }
 
     /// Background image for one part: covered over the whole slide, blurred, cut to the part.

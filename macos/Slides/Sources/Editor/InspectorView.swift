@@ -11,6 +11,9 @@ struct InspectorView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 22) {
+                if let box = editor.selectedText {
+                    TextCard(editor: editor, box: box)
+                }
                 FormatCard(editor: editor)
                 LayoutCard(editor: editor, slide: slide)
                 BackgroundCard(editor: editor, slide: slide)
@@ -22,6 +25,160 @@ struct InspectorView: View {
             // switch and grows to the sliders' preferred width.
             .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity)
         }
+    }
+}
+
+// MARK: - Text
+
+/// The selected text box, like Figma's typography panel.
+private struct TextCard: View {
+    let editor: EditorModel
+    let box: TextBox
+
+    private func style(_ key: String? = nil, _ change: @escaping (inout TextBox) -> Void) {
+        editor.styleText(box.id, key, change)
+    }
+
+    var body: some View {
+        let family = Fonts.family(of: box.font)
+        let members = Fonts.members(of: family)
+        Card(title: "Text", icon: "typography") {
+            Button { editor.removeText(box.id) } label: { TablerIcon("trash", size: 15) }
+                .buttonStyle(.borderless)
+                .help("Delete text (⌫)")
+        } content: {
+            Picker("Font", selection: Binding(get: { family }, set: { newFamily in
+                let current = members.first { $0.postScript == box.font }?.style
+                let options = Fonts.members(of: newFamily)
+                let pick = options.first { $0.style == current } ?? options.first { $0.style == "Regular" } ?? options.first
+                if let pick { style { $0.font = pick.postScript } }
+            })) {
+                ForEach(Fonts.families, id: \.self) { Text($0).tag($0) }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .buttonSizing(.flexible)
+            .frame(maxWidth: .infinity)
+            HStack(spacing: 8) {
+                Picker("Style", selection: Binding(get: { box.font }, set: { name in style { $0.font = name } })) {
+                    ForEach(members, id: \.postScript) { Text($0.style).tag($0.postScript) }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .buttonSizing(.flexible)
+                .frame(maxWidth: .infinity)
+                NumberField(value: box.size, placeholder: "Size", help: "Font size in px") { value in
+                    if let value { style { $0.size = min(max(value, TextBox.sizeRange.lowerBound), TextBox.sizeRange.upperBound) } }
+                }
+                .frame(width: 64)
+            }
+            Row(label: "Color") {
+                HStack(spacing: 8) {
+                    Swatch(color: .white, selected: box.color == .white) { style { $0.color = .white } }
+                    Swatch(color: .black, selected: box.color == .black) { style { $0.color = .black } }
+                    ColorPicker("Text color", selection: Binding(
+                        get: { Color(box.color) },
+                        set: { color in style("color") { $0.color = RGB(NSColor(color)) } }
+                    ), supportsOpacity: false)
+                    .labelsHidden()
+                }
+            }
+            Row(label: "Align") {
+                Picker("Align", selection: Binding(get: { box.alignment }, set: { alignment in style { $0.alignment = alignment } })) {
+                    ForEach(TextAlignment.allCases, id: \.self) { alignment in
+                        TablerIcon("align-\(alignment.rawValue)", size: 14).tag(alignment)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Row(label: "Width") {
+                Picker("Width", selection: Binding(get: { box.width != nil }, set: { fixed in
+                    let width = TextRenderer.size(of: box).width
+                    editor.updateText(box.id) { $0.width = fixed ? width : nil }
+                })) {
+                    Text("Auto").tag(false)
+                    Text("Fixed").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Auto grows with the text; Fixed wraps it. The side handles set the width too.")
+            }
+            HStack(spacing: 10) {
+                NumberField(icon: "line-height", value: box.lineHeight, placeholder: "Auto", suffix: "%", help: "Line height in % of the font size, empty for auto") { value in
+                    style { $0.lineHeight = value.map { max($0, 10) } }
+                }
+                NumberField(icon: "letter-spacing", value: box.letterSpacing, placeholder: "0", suffix: "%", help: "Letter spacing in % of the font size") { value in
+                    style { $0.letterSpacing = value ?? 0 }
+                }
+            }
+        }
+    }
+}
+
+/// Number entry that commits on Return or when it loses focus. Empty commits `nil`.
+private struct NumberField: View {
+    var icon: String?
+    let value: Double?
+    let placeholder: String
+    var suffix = ""
+    let help: String
+    let onCommit: (Double?) -> Void
+
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon {
+                TablerIcon(icon, size: 15).foregroundStyle(.secondary)
+            }
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .focused($focused)
+                .onSubmit(commit)
+                .onChange(of: focused) { _, focused in if !focused { commit() } }
+            if !suffix.isEmpty {
+                Text(suffix).foregroundStyle(.secondary)
+            }
+        }
+        .help(help)
+        .onAppear { text = format(value) }
+        .onChange(of: value) { _, value in if !focused { text = format(value) } }
+    }
+
+    private func commit() {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        let number = Double(trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "%px ")))
+        if trimmed.isEmpty || number != nil, number != value { onCommit(number) }
+        text = format(number ?? value)
+    }
+
+    private func format(_ value: Double?) -> String {
+        guard let value else { return "" }
+        return value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+    }
+}
+
+/// Installed fonts by family, with their styles as PostScript names.
+enum Fonts {
+    struct Member: Hashable {
+        let postScript: String
+        let style: String
+    }
+
+    static let families: [String] = NSFontManager.shared.availableFontFamilies.filter { !$0.hasPrefix(".") }
+
+    static func members(of family: String) -> [Member] {
+        (NSFontManager.shared.availableMembers(ofFontFamily: family) ?? []).compactMap { member in
+            guard let name = member.first as? String, let style = member.dropFirst().first as? String else { return nil }
+            return Member(postScript: name, style: style)
+        }
+    }
+
+    static func family(of postScript: String) -> String {
+        NSFont(name: postScript, size: 12)?.familyName ?? "Helvetica Neue"
     }
 }
 

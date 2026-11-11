@@ -18,6 +18,13 @@ final class EditorModel {
     var renaming = false
     var exportSize = ExportSize.instagram
 
+    /// Text tool: the next click on the slide places a text box.
+    var placingText = false
+    private(set) var selectedTextID: TextBox.ID?
+    private(set) var editingTextID: TextBox.ID?
+    /// Style of the last text the user styled, for the next new box.
+    @ObservationIgnored private var textStyle: TextBox?
+
     @ObservationIgnored weak var undoManager: UndoManager?
     @ObservationIgnored private var lastEdit: (key: String, time: Date)?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -91,26 +98,101 @@ final class EditorModel {
 
     // MARK: - Slides
 
-    func select(_ id: Slide.ID) { selectedSlideID = id }
+    func select(_ id: Slide.ID) {
+        guard id != selectedSlideID else { return }
+        endTextEditing()
+        selectedTextID = nil
+        selectedSlideID = id
+    }
 
     func selectPrevious() {
-        if currentIndex > 0 { selectedSlideID = project.slides[currentIndex - 1].id }
+        if currentIndex > 0 { select(project.slides[currentIndex - 1].id) }
     }
 
     func selectNext() {
-        if currentIndex < project.slides.count - 1 { selectedSlideID = project.slides[currentIndex + 1].id }
+        if currentIndex < project.slides.count - 1 { select(project.slides[currentIndex + 1].id) }
     }
 
     func addSlide() {
         var id = selectedSlideID
         edit { id = $0.insertSlide(after: id) }
-        selectedSlideID = id
+        select(id)
     }
 
     func removeSlide(_ id: Slide.ID) {
         var next: Slide.ID?
         edit { next = $0.removeSlide(id) }
-        if let next, id == selectedSlideID { selectedSlideID = next }
+        if let next, id == selectedSlideID { select(next) }
+    }
+
+    // MARK: - Text
+
+    var selectedText: TextBox? {
+        guard let id = selectedTextID else { return nil }
+        return currentSlide.texts.first { $0.id == id }
+    }
+
+    /// Places a text box with its top-left at `point` (1x canvas pixels) and starts editing it.
+    /// A `width` makes it wrap; without one it grows with the text.
+    @discardableResult
+    func addText(at point: CGPoint, width: Double? = nil, text: String = "", in slideID: Slide.ID? = nil) -> TextBox.ID {
+        let slideID = slideID ?? selectedSlideID
+        var box = textStyle ?? TextBox(text: "", x: 0, y: 0)
+        box.id = UUID()
+        box.text = text
+        box.x = point.x
+        box.y = point.y
+        box.width = width
+        if textStyle == nil, let slide = project.slides.first(where: { $0.id == slideID }) {
+            // White on dark backgrounds until a color is picked.
+            let color = slide.style.color
+            box.color = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b < 0.5 ? .white : .black
+        }
+        editSlide(slideID) { $0.addText(box) }
+        placingText = false
+        if slideID == selectedSlideID {
+            selectedTextID = box.id
+            editingTextID = text.isEmpty ? box.id : nil
+        }
+        return box.id
+    }
+
+    /// Changes a text box. `key` merges a drag or typing into one undo step.
+    func updateText(_ id: TextBox.ID, in slideID: Slide.ID? = nil, _ key: String? = nil, _ change: (inout TextBox) -> Void) {
+        editSlide(slideID, key.map { "text-\(id)-\($0)" }) { $0.updateText(id, change) }
+    }
+
+    /// Changes the look of a text box and remembers it for the next new one.
+    func styleText(_ id: TextBox.ID, _ key: String? = nil, _ change: (inout TextBox) -> Void) {
+        updateText(id, in: nil, key, change)
+        if let box = currentSlide.texts.first(where: { $0.id == id }) { textStyle = box }
+    }
+
+    func removeText(_ id: TextBox.ID, in slideID: Slide.ID? = nil) {
+        if editingTextID == id { editingTextID = nil }
+        if selectedTextID == id { selectedTextID = nil }
+        editSlide(slideID) { $0.removeText(id) }
+    }
+
+    func selectText(_ id: TextBox.ID?) {
+        if id != editingTextID { endTextEditing() }
+        selectedTextID = id
+        if id != nil { placingText = false }
+    }
+
+    func editText(_ id: TextBox.ID) {
+        selectedTextID = id
+        editingTextID = id
+        placingText = false
+    }
+
+    /// Leaves the text field. An empty box goes away, like in Figma.
+    func endTextEditing() {
+        guard let id = editingTextID else { return }
+        editingTextID = nil
+        if let box = currentSlide.texts.first(where: { $0.id == id }), box.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            removeText(id)
+        }
     }
 
     func moveSlide(_ id: Slide.ID, to destination: Int) {
@@ -121,26 +203,37 @@ final class EditorModel {
 
     /// Copies dropped or picked files into the project and places them, starting at `slot`.
     func drop(_ urls: [URL], slot: Int?, in slideID: Slide.ID) {
-        let files = urls.filter { MediaLoader.kind(of: $0) != nil }
-        guard !files.isEmpty else { return }
-        importing += 1
-        Task {
-            defer { importing -= 1 }
-            let media = await Self.importFiles(files, library: library, project: url)
-            for item in media { await MediaCache.shared.preload(mediaURL(item.file)) }
-            editSlide(slideID) { $0.place(media, at: slot) }
-        }
+        Task { await place(urls, slot: slot, in: slideID) }
+    }
+
+    /// Imports and places the files; returns how many were placed (media that doesn't fit is left out).
+    @discardableResult
+    func place(_ urls: [URL], slot: Int?, in slideID: Slide.ID) async -> Int {
+        let media = await importMedia(urls)
+        guard !media.isEmpty else { return 0 }
+        var placed = 0
+        editSlide(slideID) { placed = $0.place(media, at: slot) }
+        return placed
     }
 
     func setBackgroundImage(_ source: URL) {
         let slideID = selectedSlideID
-        importing += 1
         Task {
-            defer { importing -= 1 }
-            guard let media = await Self.importFiles([source], library: library, project: url).first else { return }
-            await MediaCache.shared.preload(mediaURL(media.file))
+            guard let media = await importMedia([source]).first else { return }
             editSlide(slideID) { $0.style.backgroundImage = media.file }
         }
+    }
+
+    /// Copies photos and videos into the project's `media/` folder and decodes them for the editor.
+    /// Other files are skipped.
+    func importMedia(_ urls: [URL]) async -> [Media] {
+        let files = urls.filter { MediaLoader.kind(of: $0) != nil }
+        guard !files.isEmpty else { return [] }
+        importing += 1
+        defer { importing -= 1 }
+        let media = await Self.importFiles(files, library: library, project: url)
+        for item in media { await MediaCache.shared.preload(mediaURL(item.file)) }
+        return media
     }
 
     @concurrent
@@ -233,25 +326,30 @@ final class EditorModel {
     }
 
     func export(to folder: URL, size: ExportSize = .instagram) {
-        guard exportProgress == nil else { return }
+        Task {
+            guard let urls = try? await exportFiles(to: folder, size: size) else { return }
+            NSWorkspace.shared.activateFileViewerSelecting(urls)
+        }
+    }
+
+    /// Writes all frames into `folder` and returns the files. Fails while another export runs.
+    func exportFiles(to folder: URL, size: ExportSize = .instagram) async throws -> [URL] {
+        guard exportProgress == nil else { throw CocoaError(.userCancelled) }
         saveNow()
         exportProgress = 0
+        defer { exportProgress = nil }
         let library = library
         let projectURL = url
         let exporter = Exporter(project: project, scale: size.rawValue) { library.mediaURL($0, in: projectURL) }
-        Task {
-            do {
-                let urls = try await exporter.export(to: folder) { fraction in
-                    Task { @MainActor in
-                        if self.exportProgress != nil { self.exportProgress = fraction }
-                    }
+        do {
+            return try await exporter.export(to: folder) { fraction in
+                Task { @MainActor in
+                    if self.exportProgress != nil { self.exportProgress = fraction }
                 }
-                exportProgress = nil
-                NSWorkspace.shared.activateFileViewerSelecting(urls)
-            } catch {
-                exportProgress = nil
-                exportError = error.localizedDescription
             }
+        } catch {
+            exportError = error.localizedDescription
+            throw error
         }
     }
 }

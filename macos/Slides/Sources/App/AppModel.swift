@@ -10,11 +10,15 @@ final class AppModel {
     let library: ProjectLibrary
     private(set) var projects: [ProjectSummary] = []
     private(set) var editor: EditorModel?
+    @ObservationIgnored private var mcp: MCPServer?
 
     init(library: ProjectLibrary = AppModel.defaultLibrary) {
         self.library = library
         try? FileManager.default.createDirectory(at: library.root, withIntermediateDirectories: true)
         refresh()
+        let tools = MCPProtocol(tools: SlidesTools(app: self))
+        mcp = MCPServer { await tools.handle($0) }
+        mcp?.start()
         #if DEBUG
             // `SLIDES_OPEN_PROJECT=<path to .slides folder>` opens a project at launch, for screenshots.
             if let path = ProcessInfo.processInfo.environment["SLIDES_OPEN_PROJECT"],
@@ -66,6 +70,24 @@ final class AppModel {
         Task {
             await editor.save()
             refresh()
+        }
+    }
+
+    /// A text field undoes its typing; otherwise the open project undoes its last edit.
+    /// The menu's own Undo can't reach the project: the editor's key-focus proxy has no undo manager.
+    func undo() {
+        if NSApp.keyWindow?.firstResponder is NSTextView {
+            NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+        } else if editor?.undoManager?.canUndo == true {
+            editor?.undoManager?.undo()
+        }
+    }
+
+    func redo() {
+        if NSApp.keyWindow?.firstResponder is NSTextView {
+            NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+        } else if editor?.undoManager?.canRedo == true {
+            editor?.undoManager?.redo()
         }
     }
 
