@@ -29,6 +29,8 @@ struct SlideView: View {
                         editor: editor,
                         mediaURL: mediaURL
                     )
+                    // Drawn only (filmstrip, start screen): clicks go to the view around it.
+                    .allowsHitTesting(editor != nil)
                 }
                 if let edge = slide.style.filmEdge {
                     FilmEdgeImage(edge: edge, rect: layout.filmEdgeRect(mediaSizes: mediaSizes).scaled(scale), frameHeight: layout.format.height * scale)

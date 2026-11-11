@@ -87,6 +87,7 @@ private struct FilmstripItem: View {
                 editor.select(slide.id)
                 editor.addSlide()
             }
+            Button("Duplicate Slide") { editor.duplicateSlide(slide.id) }
             Divider()
             Button("Delete Slide", role: .destructive) { editor.removeSlide(slide.id) }
                 .disabled(editor.project.slides.count < 2)

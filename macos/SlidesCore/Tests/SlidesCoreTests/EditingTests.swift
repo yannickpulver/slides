@@ -66,6 +66,25 @@ struct EditingTests {
         #expect(project.slides.map(\.id) == [first, third, second])
     }
 
+    @Test func duplicateSlideCopiesRightAfter() throws {
+        var project = Project(name: "Test")
+        let first = project.slides[0].id
+        let last = project.insertSlide(after: first)
+        project.updateSlide(first) {
+            $0.place([Media(file: "a", kind: .image)], at: nil)
+            $0.style.filmEdge = .gateBlack
+            $0.texts = [TextBox(text: "Arolla", x: 0, y: 18)]
+        }
+        let duplicated = project.duplicateSlide(first)
+        let copy = try #require(duplicated)
+        #expect(project.slides.map(\.id) == [first, copy, last])
+        let original = project.slides[0], duplicate = project.slides[1]
+        #expect(duplicate.slots == original.slots)
+        #expect(duplicate.style == original.style)
+        #expect(duplicate.texts.map(\.text) == ["Arolla"])
+        #expect(duplicate.texts[0].id != original.texts[0].id)
+    }
+
     @Test func removeKeepsOneSlide() {
         var project = Project(name: "Test")
         let only = project.slides[0].id

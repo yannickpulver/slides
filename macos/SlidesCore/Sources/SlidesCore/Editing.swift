@@ -77,6 +77,17 @@ extension Project {
         return slide.id
     }
 
+    /// Puts a copy of a slide right after it and returns the copy's id.
+    @discardableResult
+    public mutating func duplicateSlide(_ id: Slide.ID) -> Slide.ID? {
+        guard let index = index(of: id) else { return nil }
+        var copy = slides[index]
+        copy.id = UUID()
+        copy.texts = copy.texts.map { var box = $0; box.id = UUID(); return box }
+        slides.insert(copy, at: index + 1)
+        return copy.id
+    }
+
     /// Removes a slide, keeping at least one. Returns the id to select next.
     public mutating func removeSlide(_ id: Slide.ID) -> Slide.ID? {
         guard slides.count > 1, let index = index(of: id) else { return nil }
