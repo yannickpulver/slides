@@ -53,6 +53,15 @@ struct EditingTests {
         #expect(slide.place([a, b], at: nil) == 1)
     }
 
+    @Test func stacksAndPanoramasGoUpToSix() {
+        var slide = Slide()
+        slide.choose(.six)
+        #expect(slide.slots.count == 6)
+        #expect(slide.place([a, b, c, d], at: nil) == 4)
+        slide.choose(.single, span: 9)
+        #expect(slide.span == 6)
+    }
+
     @Test func moveSlide() {
         var project = Project(name: "Test")
         let first = project.slides[0].id

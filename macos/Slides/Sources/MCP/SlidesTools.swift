@@ -10,8 +10,8 @@ struct SlidesTools {
     static let instructions = """
     Slides is a macOS editor for Instagram-style photo and video carousels. Edits go to the open app live, \
     save automatically, and the user can undo them with ⌘Z (or the undo tool).
-    A project is a list of slides in one format (4:3 or 16:9 portrait frames). A slide stacks 1 to 3 photos \
-    vertically (layout), or spans 2 to 5 frames as a panorama with one photo (span). Slides and slots are \
+    A project is a list of slides in one format (4:3 or 16:9 portrait frames). A slide stacks 1 to 6 photos \
+    vertically (layout), or spans 2 to 6 frames as a panorama with one photo (span). Slides and slots are \
     numbered from 1. Text boxes sit on top, positioned in 1x pixels from the slide's top-left \
     (frameSize in get_project; a panorama's canvas is span × frame width wide, so text can cross the cuts). \
     Most tools need an open project: call open_project or create_project first. \
@@ -44,8 +44,8 @@ struct SlidesTools {
         ], required: ["slide", "to"]),
         tool("update_slide", "Changes a slide's layout and style. Only the given fields change; all in one undo step.", [
             "slide": slideArg,
-            "layout": integer("Photos stacked vertically: 1, 2 or 3. Sets span to 1."),
-            "span": integer("Frames the slide covers: 1 = normal, 2...5 = panorama with one photo."),
+            "layout": integer("Photos stacked vertically: 1 to 6. Sets span to 1."),
+            "span": integer("Frames the slide covers: 1 = normal, 2...6 = panorama with one photo."),
             "fit": enumeration(["fill", "full"], "fill: photos cover their slot (pan and zoom apply). full: whole photo visible."),
             "border": number("Margin around the whole slide in 1x pixels (once, not per photo), 0...\(Int(SlideStyle.maxBorder))."),
             "gap": number("Space between stacked photos in 1x pixels, 0...\(Int(SlideStyle.maxGap))."),
@@ -329,7 +329,7 @@ struct SlidesTools {
 
         // Check everything first, so a bad value changes nothing.
         let layout = try args.int("layout").map { value in
-            guard let layout = Layout(rawValue: value) else { throw ToolError("layout must be 1, 2 or 3.") }
+            guard let layout = Layout(rawValue: value) else { throw ToolError("layout must be 1...\(Layout.allCases.count).") }
             return layout
         }
         let span = try args.int("span").map { value in

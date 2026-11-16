@@ -44,16 +44,19 @@ public enum Layout: Int, Codable, CaseIterable, Sendable {
     case single = 1
     case two = 2
     case three = 3
+    case four = 4
+    case five = 5
+    case six = 6
 
     public var slotCount: Int { rawValue }
 }
 
 public struct Slide: Codable, Equatable, Sendable, Identifiable {
-    public static let maxSpan = 5
+    public static let maxSpan = 6
 
     public var id = UUID()
     public var layout: Layout = .single
-    /// Frames this slide covers. 2...5 makes a panorama; only with `.single`.
+    /// Frames this slide covers. 2...6 makes a panorama; only with `.single`.
     public var span = 1
     /// One entry per slot of `layout`; `nil` is an empty slot.
     public var slots: [Media?] = [nil]

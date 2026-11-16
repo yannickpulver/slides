@@ -218,71 +218,30 @@ private struct LayoutCard: View {
                 .lineLimit(1)
                 .layoutPriority(-1)
         } content: {
-            Text("Stack").foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                ForEach(Layout.allCases, id: \.self) { layout in
-                    LayoutTile(selected: !slide.isPanorama && slide.layout == layout, help: "\(layout.slotCount) stacked") {
-                        StackIcon(count: layout.slotCount)
-                    } action: {
-                        editor.chooseLayout(layout)
+            // A menu picker writes its value back on its own when it appears; acting on that
+            // would end a stack or a panorama and drop photos, so only a different value counts.
+            Row(label: "Stack") {
+                Picker("Stack", selection: Binding(get: { slide.layout }, set: { if $0 != slide.layout { editor.chooseLayout($0) } })) {
+                    ForEach(Layout.allCases, id: \.self) { layout in
+                        Text(layout.slotCount == 1 ? "1 photo" : "\(layout.slotCount) photos").tag(layout)
                     }
                 }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .buttonSizing(.flexible)
+                .frame(width: 110)
             }
-            Text("Panorama").foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                ForEach(2...Slide.maxSpan, id: \.self) { span in
-                    LayoutTile(selected: slide.span == span, help: "One photo across \(span) slides") {
-                        PanoramaIcon(count: span)
-                    } action: {
-                        editor.chooseLayout(.single, span: span)
-                    }
+            Row(label: "Panorama") {
+                Picker("Panorama", selection: Binding(get: { slide.span }, set: { if $0 != slide.span { editor.chooseLayout(.single, span: $0) } })) {
+                    Text("Off").tag(1)
+                    ForEach(2...Slide.maxSpan, id: \.self) { Text("\($0) slides").tag($0) }
                 }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .buttonSizing(.flexible)
+                .frame(width: 110)
             }
         }
-    }
-}
-
-private struct LayoutTile<Icon: View>: View {
-    let selected: Bool
-    let help: String
-    @ViewBuilder let icon: () -> Icon
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            icon()
-                .padding(7)
-                .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Color.primary.opacity(selected ? 0.1 : 0.05), in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(selected ? Color.primary.opacity(0.8) : .clear, lineWidth: 1.5))
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(Color.primary.opacity(selected ? 0.9 : 0.4))
-        .help(help)
-    }
-}
-
-private struct StackIcon: View {
-    let count: Int
-
-    var body: some View {
-        VStack(spacing: 2) {
-            ForEach(0..<count, id: \.self) { _ in RoundedRectangle(cornerRadius: 1.5).fill(.foreground) }
-        }
-        .aspectRatio(3.0 / 4.0, contentMode: .fit)
-    }
-}
-
-private struct PanoramaIcon: View {
-    let count: Int
-
-    var body: some View {
-        HStack(spacing: 2) {
-            ForEach(0..<count, id: \.self) { _ in RoundedRectangle(cornerRadius: 1.5).fill(.foreground) }
-        }
-        .frame(height: 18)
     }
 }
 
