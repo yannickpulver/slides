@@ -10,7 +10,7 @@ extension Slide {
     /// Media that doesn't fit is left out. Returns how many were placed.
     @discardableResult
     public mutating func place(_ media: [Media], at slot: Int?) -> Int {
-        let capacity = isPanorama ? 1 : (layoutChosen ? layout.slotCount : Self.maxAutoSlots)
+        let capacity = isPanorama ? 1 : (layoutChosen ? slotCount : Self.maxAutoSlots)
         var targets: [Int]
         if let slot {
             targets = Array(slot..<capacity)
@@ -30,16 +30,18 @@ extension Slide {
         return targets.count
     }
 
-    /// Picks a layout by hand. A span above 1 makes a panorama with one photo.
-    public mutating func choose(_ layout: Layout, span: Int = 1) {
+    /// Picks rows and columns by hand. A span above 1 makes a panorama with one photo.
+    public mutating func choose(_ layout: Layout, columns: Int = 1, span: Int = 1) {
         let span = min(max(span, 1), Self.maxSpan)
         let layout = span > 1 ? .single : layout
-        let changed = layout != self.layout || span != self.span
+        let columns = span > 1 ? 1 : min(max(columns, 1), Self.maxColumns)
+        let changed = layout != self.layout || columns != self.columns || span != self.span
         // Keep the photos in order, without the gaps.
         let kept = slots.compactMap(\.self)
         self.layout = layout
+        self.columns = columns
         self.span = span
-        slots = (0..<layout.slotCount).map { $0 < kept.count ? kept[$0] : nil }
+        slots = (0..<slotCount).map { $0 < kept.count ? kept[$0] : nil }
         if changed { resetCrops() }
         layoutChosen = true
     }
@@ -51,8 +53,8 @@ extension Slide {
 
     private mutating func resize(to layout: Layout) {
         self.layout = layout
-        slots += Array(repeating: nil, count: max(layout.slotCount - slots.count, 0))
-        slots = Array(slots.prefix(layout.slotCount))
+        slots += Array(repeating: nil, count: max(slotCount - slots.count, 0))
+        slots = Array(slots.prefix(slotCount))
         resetCrops()
     }
 

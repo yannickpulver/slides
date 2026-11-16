@@ -82,7 +82,7 @@ final class EditorModel {
 
     func rename(_ name: String) { edit("name") { $0.name = name } }
     func setFormat(_ format: Format) { edit { $0.format = format } }
-    func chooseLayout(_ layout: Layout, span: Int = 1) { editSlide { $0.choose(layout, span: span) } }
+    func chooseLayout(_ layout: Layout, columns: Int = 1, span: Int = 1) { editSlide { $0.choose(layout, columns: columns, span: span) } }
     func setColor(_ color: RGB) { editSlide(nil, "color") { $0.style.color = color } }
     func setGap(_ gap: Double) { editSlide(nil, "gap") { $0.style.gap = gap } }
     func setBorder(_ border: Double) { editSlide(nil, "border") { $0.style.border = border } }

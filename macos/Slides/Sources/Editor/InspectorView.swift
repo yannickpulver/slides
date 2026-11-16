@@ -213,18 +213,27 @@ private struct LayoutCard: View {
     var body: some View {
         Card(title: "Slide \(editor.currentIndex + 1)", icon: "layout-rows") {
             // Short and allowed to truncate: a longer text here would widen the inspector.
-            Text(slide.isPanorama ? "\(slide.span) parts" : "\(slide.mediaCount) of \(slide.layout.slotCount)")
+            Text(slide.isPanorama ? "\(slide.span) parts" : "\(slide.mediaCount) of \(slide.slotCount)")
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .layoutPriority(-1)
         } content: {
             // A menu picker writes its value back on its own when it appears; acting on that
-            // would end a stack or a panorama and drop photos, so only a different value counts.
-            Row(label: "Stack") {
-                Picker("Stack", selection: Binding(get: { slide.layout }, set: { if $0 != slide.layout { editor.chooseLayout($0) } })) {
+            // would end a grid or a panorama and drop photos, so only a different value counts.
+            Row(label: "Rows") {
+                Picker("Rows", selection: Binding(get: { slide.layout }, set: { if $0 != slide.layout { editor.chooseLayout($0, columns: slide.columns) } })) {
                     ForEach(Layout.allCases, id: \.self) { layout in
-                        Text(layout.slotCount == 1 ? "1 photo" : "\(layout.slotCount) photos").tag(layout)
+                        Text(layout.slotCount == 1 ? "1 row" : "\(layout.slotCount) rows").tag(layout)
                     }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .buttonSizing(.flexible)
+                .frame(width: 110)
+            }
+            Row(label: "Columns") {
+                Picker("Columns", selection: Binding(get: { slide.columns }, set: { if $0 != slide.columns { editor.chooseLayout(slide.layout, columns: $0) } })) {
+                    ForEach(1...Slide.maxColumns, id: \.self) { Text($0 == 1 ? "1 column" : "\($0) columns").tag($0) }
                 }
                 .pickerStyle(.menu)
                 .labelsHidden()
