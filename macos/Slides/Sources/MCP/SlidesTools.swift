@@ -10,8 +10,8 @@ struct SlidesTools {
     static let instructions = """
     Slides is a macOS editor for Instagram-style photo and video carousels. Edits go to the open app live, \
     save automatically, and the user can undo them with ⌘Z (or the undo tool).
-    A project is a list of slides in one format (4:3 or 16:9 portrait frames). A slide stacks 1 to 6 photos \
-    vertically (layout), or spans 2 to 6 frames as a panorama with one photo (span). Slides and slots are \
+    A project is a list of slides in one format (4:3 or 16:9 portrait frames). A slide holds a grid of photos, 1 to 6 \
+    rows (layout) by 1 to 5 columns, slots numbered row by row, or spans 2 to 6 frames as a panorama with one photo (span). Slides and slots are \
     numbered from 1. Text boxes sit on top, positioned in 1x pixels from the slide's top-left \
     (frameSize in get_project; a panorama's canvas is span × frame width wide, so text can cross the cuts). \
     Most tools need an open project: call open_project or create_project first. \
@@ -44,11 +44,12 @@ struct SlidesTools {
         ], required: ["slide", "to"]),
         tool("update_slide", "Changes a slide's layout and style. Only the given fields change; all in one undo step.", [
             "slide": slideArg,
-            "layout": integer("Photos stacked vertically: 1 to 6. Sets span to 1."),
+            "layout": integer("Rows of photos: 1 to 6. Sets span to 1."),
+            "columns": integer("Photos side by side per row: 1 to \(Slide.maxColumns). Sets span to 1."),
             "span": integer("Frames the slide covers: 1 = normal, 2...6 = panorama with one photo."),
             "fit": enumeration(["fill", "full"], "fill: photos cover their slot (pan and zoom apply). full: whole photo visible."),
             "border": number("Margin around the whole slide in 1x pixels (once, not per photo), 0...\(Int(SlideStyle.maxBorder))."),
-            "gap": number("Space between stacked photos in 1x pixels, 0...\(Int(SlideStyle.maxGap))."),
+            "gap": number("Space between photos in 1x pixels, 0...\(Int(SlideStyle.maxGap))."),
             "color": string("Background color as hex, e.g. #FFFFFF."),
             "background_image": string("Absolute path of a photo for a blurred background, or \"\" to remove it."),
             "blur": number("Blur radius of the background photo in 1x pixels, 0...\(Int(SlideStyle.maxBlur))."),
@@ -332,6 +333,10 @@ struct SlidesTools {
             guard let layout = Layout(rawValue: value) else { throw ToolError("layout must be 1...\(Layout.allCases.count).") }
             return layout
         }
+        let columns = try args.int("columns").map { value in
+            guard (1...Slide.maxColumns).contains(value) else { throw ToolError("columns must be 1...\(Slide.maxColumns).") }
+            return value
+        }
         let span = try args.int("span").map { value in
             guard (1...Slide.maxSpan).contains(value) else { throw ToolError("span must be 1...\(Slide.maxSpan).") }
             return value
@@ -366,9 +371,9 @@ struct SlidesTools {
         }
 
         editor.editSlide(id) { slide in
-            if layout != nil || span != nil {
-                // A layout alone ends a panorama; a span above 1 forces one photo.
-                slide.choose(layout ?? slide.layout, span: span ?? 1)
+            if layout != nil || columns != nil || span != nil {
+                // Rows or columns alone end a panorama; a span above 1 forces one photo.
+                slide.choose(layout ?? slide.layout, columns: columns ?? slide.columns, span: span ?? 1)
             }
             if let fit { slide.style.fit = fit }
             if let border = args.double("border") { slide.style.border = min(max(border, 0), SlideStyle.maxBorder) }
@@ -470,6 +475,7 @@ struct SlidesTools {
                 [
                     "slide": index + 1,
                     "layout": slide.layout.rawValue,
+                    "columns": slide.columns,
                     "span": slide.span,
                     "slots": slide.slots.map { media -> Any in
                         guard let media else { return NSNull() }

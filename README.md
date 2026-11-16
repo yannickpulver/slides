@@ -15,7 +15,7 @@ Slides updates itself through Sparkle. It needs macOS 26 or later.
 ## Features
 
 - Drop photos and videos onto a slide, or click a slot to pick files
-- One to six stacked photos per slide, or a panorama across 2 to 6 slides
+- Photos in a grid of 1 to 6 rows and 1 to 5 columns per slide, or a panorama across 2 to 6 slides
 - Pan and zoom each photo; it always covers its slot
 - Background color or blurred background image, gap and border
 - Thin film-gate edge in white or black

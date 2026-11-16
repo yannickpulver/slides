@@ -15,6 +15,16 @@ struct SlideLayoutTests {
         #expect(slots[2].maxY == 1024)
     }
 
+    @Test func gridSlotsRunRowByRow() {
+        var slide = Slide()
+        slide.choose(.two, columns: 3)
+        slide.style.gap = 24
+        let slots = SlideLayout(slide: slide, format: .portrait4x3).slots
+        #expect(slots.count == 6)
+        #expect(slots[0] == CGRect(x: 0, y: 0, width: 240, height: 500))
+        #expect(slots[4] == CGRect(x: 264, y: 524, width: 240, height: 500))
+    }
+
     @Test func borderShrinksVisibleArea() {
         var slide = Slide()
         slide.style.border = 40

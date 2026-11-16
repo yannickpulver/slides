@@ -39,7 +39,7 @@ public enum Format: String, Codable, CaseIterable, Sendable {
     }
 }
 
-/// How many photos a slide stacks vertically.
+/// How many rows of photos a slide stacks vertically.
 public enum Layout: Int, Codable, CaseIterable, Sendable {
     case single = 1
     case two = 2
@@ -53,12 +53,16 @@ public enum Layout: Int, Codable, CaseIterable, Sendable {
 
 public struct Slide: Codable, Equatable, Sendable, Identifiable {
     public static let maxSpan = 6
+    public static let maxColumns = 5
 
     public var id = UUID()
+    /// Rows of photos.
     public var layout: Layout = .single
+    /// Photos side by side in each row. Only 1 in a panorama.
+    public var columns = 1
     /// Frames this slide covers. 2...6 makes a panorama; only with `.single`.
     public var span = 1
-    /// One entry per slot of `layout`; `nil` is an empty slot.
+    /// One entry per slot, row by row (`slotCount`); `nil` is an empty slot.
     public var slots: [Media?] = [nil]
     public var style = SlideStyle()
     /// Set once the layout is picked by hand. Until then, drops grow the layout.
@@ -69,14 +73,15 @@ public struct Slide: Codable, Equatable, Sendable, Identifiable {
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case id, layout, span, slots, style, layoutChosen, texts
+        case id, layout, columns, span, slots, style, layoutChosen, texts
     }
 
-    /// Projects from before text have no `texts`.
+    /// Projects from before text have no `texts`, from before columns no `columns`.
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         layout = try c.decode(Layout.self, forKey: .layout)
+        columns = try c.decodeIfPresent(Int.self, forKey: .columns) ?? 1
         span = try c.decode(Int.self, forKey: .span)
         slots = try c.decode([Media?].self, forKey: .slots)
         style = try c.decode(SlideStyle.self, forKey: .style)
@@ -85,6 +90,7 @@ public struct Slide: Codable, Equatable, Sendable, Identifiable {
     }
 
     public var isPanorama: Bool { span > 1 }
+    public var slotCount: Int { layout.slotCount * columns }
     public var mediaCount: Int { slots.compactMap(\.self).count }
     public var hasVideo: Bool { slots.contains { $0?.kind == .video } }
 }
@@ -156,7 +162,7 @@ public struct SlideStyle: Codable, Equatable, Sendable {
     public var fit: Fit = .fill
     /// Inset around each photo, in 1x pixels.
     public var border = 0.0
-    /// Space between stacked photos, in 1x pixels.
+    /// Space between photos, in 1x pixels.
     public var gap = 0.0
     public var color: RGB = .white
     /// File name inside `media/`.

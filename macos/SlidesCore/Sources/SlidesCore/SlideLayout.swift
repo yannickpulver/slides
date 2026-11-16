@@ -32,14 +32,19 @@ public struct SlideLayout: Sendable {
         return canvas.insetBy(dx: max(border, 0), dy: max(border, 0))
     }
 
-    /// Slot areas inside `content`, top to bottom, with the gap between them.
+    /// Slot areas inside `content`, row by row, with the gap between rows and columns.
     public var slots: [CGRect] {
         let area = content
-        let count = slide.layout.slotCount
-        let gap = count > 1 ? min(clamp(slide.style.gap, 0, SlideStyle.maxGap), area.height / Double(count - 1) - 1) : 0
-        let height = (area.height - gap * Double(count - 1)) / Double(count)
-        return (0..<count).map { i in
-            CGRect(x: area.minX, y: area.minY + Double(i) * (height + gap), width: area.width, height: height)
+        let rows = slide.layout.slotCount
+        let columns = max(slide.columns, 1)
+        let gap = clamp(slide.style.gap, 0, SlideStyle.maxGap)
+        let rowGap = rows > 1 ? min(gap, area.height / Double(rows - 1) - 1) : 0
+        let columnGap = columns > 1 ? min(gap, area.width / Double(columns - 1) - 1) : 0
+        let height = (area.height - rowGap * Double(rows - 1)) / Double(rows)
+        let width = (area.width - columnGap * Double(columns - 1)) / Double(columns)
+        return (0..<rows * columns).map { i in
+            let (row, column) = i.quotientAndRemainder(dividingBy: columns)
+            return CGRect(x: area.minX + Double(column) * (width + columnGap), y: area.minY + Double(row) * (height + rowGap), width: width, height: height)
         }
     }
 

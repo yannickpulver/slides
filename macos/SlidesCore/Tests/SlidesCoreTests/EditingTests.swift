@@ -62,6 +62,18 @@ struct EditingTests {
         #expect(slide.span == 6)
     }
 
+    @Test func columnsMultiplySlotsAndEndInAPanorama() {
+        var slide = Slide()
+        slide.place([a, b], at: nil)
+        slide.choose(.two, columns: 3)
+        #expect(slide.slots.count == 6)
+        #expect(slide.slots[0] == a && slide.slots[1] == b)
+        #expect(slide.place([c, d, a, b, c], at: nil) == 4)
+        slide.choose(.single, columns: 9, span: 3)
+        #expect(slide.columns == 1)
+        #expect(slide.slots.count == 1)
+    }
+
     @Test func moveSlide() {
         var project = Project(name: "Test")
         let first = project.slides[0].id
