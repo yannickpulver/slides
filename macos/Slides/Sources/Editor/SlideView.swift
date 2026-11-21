@@ -33,7 +33,7 @@ struct SlideView: View {
                     .allowsHitTesting(editor != nil)
                 }
                 if let edge = slide.style.filmEdge {
-                    FilmEdgeImage(edge: edge, rect: layout.filmEdgeRect(mediaSizes: mediaSizes).scaled(scale), frameHeight: layout.format.height * scale)
+                    FilmEdgeImage(edge: edge, rect: layout.filmEdgeRect(mediaSizes: mediaSizes).scaled(scale), frameHeight: layout.format.longSide * scale)
                 }
                 TextDrawing(texts: slide.texts, scale: scale, hidden: editor?.editingTextID)
                 if editor != nil, slide.isPanorama {

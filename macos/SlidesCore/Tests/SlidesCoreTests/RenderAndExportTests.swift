@@ -22,6 +22,20 @@ struct RenderTests {
         #expect(image.pixel(x: 384, y: 512) == (255, 0, 0))
     }
 
+    @Test func landscapeRendersWide() {
+        var slide = Slide()
+        slide.place([Media(file: "red", kind: .image)], at: nil)
+        let renderer = SlideRenderer(
+            layout: SlideLayout(slide: slide, format: .landscape4x3),
+            scale: 2,
+            images: ["red": Fixtures.image(width: 400, height: 300, color: RGB(r: 1, g: 0, b: 0))],
+            background: nil
+        )
+        let image = renderer.render(part: 0)!
+        #expect(image.width == 2048 && image.height == 1536)
+        #expect(image.pixel(x: 10, y: 10) == (255, 0, 0))
+    }
+
     @Test func rotationTurnsClockwise() {
         var slide = Slide()
         slide.place([Media(file: "halves", kind: .image, crop: Crop(angle: 30))], at: nil)
@@ -66,7 +80,7 @@ struct RenderTests {
         var slide = Slide()
         slide.choose(.single, span: 2)
         slide.place([Media(file: "halves", kind: .image)], at: nil)
-        // Two 4:3 frames make a 1536 × 1024 (3:2) canvas; the 3:2 photo fits exactly.
+        // Two 3:4 frames make a 1536 × 1024 (3:2) canvas; the 3:2 photo fits exactly.
         let renderer = SlideRenderer(
             layout: SlideLayout(slide: slide, format: .portrait4x3),
             scale: 1,

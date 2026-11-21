@@ -69,7 +69,7 @@ public final class SlideRenderer {
             let rect = layout.filmEdgeRect(mediaSizes: sizes)
             if !rect.isEmpty, let mask = FilmEdgeCache.shared.image(edge) {
                 let maskSize = CGSize(width: mask.width, height: mask.height)
-                for piece in FilmEdge.pieces(maskSize: maskSize, in: rect, frameHeight: layout.format.height) {
+                for piece in FilmEdge.pieces(maskSize: maskSize, in: rect, frameHeight: layout.format.longSide) {
                     if let part = mask.cropping(to: piece.source) { Self.draw(part, in: piece.target, context: context) }
                 }
             }
