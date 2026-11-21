@@ -111,18 +111,20 @@ struct EditorView: View {
         .onChange(of: editor.selectedSlideID) { _, _ in keysFocused = true }
     }
 
-    /// Arrows nudge the selected text (10 px with ⇧), otherwise switch slides.
+    /// Arrows nudge the selected text or free photo (10 px with ⇧), otherwise switch slides.
     private func arrow(_ press: KeyPress) -> KeyPress.Result {
         guard !typing else { return .ignored }
+        let step = press.modifiers.contains(.shift) ? 10.0 : 1.0
+        let (dx, dy) = switch press.key {
+        case .leftArrow: (-step, 0.0)
+        case .rightArrow: (step, 0.0)
+        case .upArrow: (0.0, -step)
+        default: (0.0, step)
+        }
         if let id = editor.selectedTextID {
-            let step = press.modifiers.contains(.shift) ? 10.0 : 1.0
-            let (dx, dy) = switch press.key {
-            case .leftArrow: (-step, 0.0)
-            case .rightArrow: (step, 0.0)
-            case .upArrow: (0.0, -step)
-            default: (0.0, step)
-            }
             editor.updateText(id, "nudge") { $0.x += dx; $0.y += dy }
+        } else if let id = editor.selectedPhotoID {
+            editor.updatePhoto(id, "nudge") { $0.x += dx; $0.y += dy }
         } else if press.key == .leftArrow || press.key == .upArrow {
             editor.selectPrevious()
         } else {
@@ -137,6 +139,8 @@ struct EditorView: View {
             editor.placingText = false
         } else if editor.selectedTextID != nil {
             editor.selectText(nil)
+        } else if editor.selectedPhotoID != nil {
+            editor.selectPhoto(nil)
         } else {
             onBack()
         }
@@ -149,7 +153,7 @@ struct EditorView: View {
         return .handled
     }
 
-    /// T toggles the text tool; ⌫ deletes the selected text, or else the slide.
+    /// T toggles the text tool; ⌫ deletes the selected text or free photo, or else the slide.
     private func otherKey(_ press: KeyPress) -> KeyPress.Result {
         guard !typing else { return .ignored }
         if press.characters == "t", press.modifiers.isEmpty {
@@ -160,6 +164,8 @@ struct EditorView: View {
         guard press.key == .delete || press.key == .deleteForward || press.characters == "\u{7F}" else { return .ignored }
         if let id = editor.selectedTextID {
             editor.removeText(id)
+        } else if let id = editor.selectedPhotoID {
+            editor.removePhoto(id)
         } else {
             deleteSelectedSlide()
         }

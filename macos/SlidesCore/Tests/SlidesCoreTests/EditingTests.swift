@@ -94,7 +94,7 @@ struct EditingTests {
         project.updateSlide(first) {
             $0.place([Media(file: "a", kind: .image)], at: nil)
             $0.style.filmEdge = .gateBlack
-            $0.texts = [TextBox(text: "Arolla", x: 0, y: 18)]
+            $0.addText(TextBox(text: "Arolla", x: 0, y: 18))
         }
         let duplicated = project.duplicateSlide(first)
         let copy = try #require(duplicated)

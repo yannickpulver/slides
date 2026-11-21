@@ -158,7 +158,8 @@ struct SlotView: View {
 
     private var empty: some View {
         ZStack {
-            Rectangle().fill(slide.style.backgroundImage == nil ? Color(white: 0.96) : .clear)
+            // Clear over a background image, or when free photos make up the slide.
+            Rectangle().fill(slide.style.backgroundImage == nil && slide.freePhotos.isEmpty ? Color(white: 0.96) : .clear)
             TablerIcon("photo-plus", size: max(min(slotRect.height * 0.1, 36), 14))
                 .foregroundStyle(.gray.opacity(0.7))
         }
@@ -234,7 +235,7 @@ private struct CropGestures: ViewModifier {
 }
 
 /// Two-finger rotation on the trackpad, in fill and full.
-private struct RotateGestures: ViewModifier {
+struct RotateGestures: ViewModifier {
     let enabled: Bool
     /// Receives the degrees turned since the gesture started.
     let onChange: (Double) -> Void

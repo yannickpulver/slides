@@ -8,7 +8,7 @@ struct TextTests {
         var slide = Slide()
         slide.addText(TextBox(text: "Hi", x: 1, y: 2))
         var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(slide)) as! [String: Any]
-        json.removeValue(forKey: "texts")
+        json.removeValue(forKey: "freeItems")
         let old = try JSONDecoder().decode(Slide.self, from: JSONSerialization.data(withJSONObject: json))
         #expect(old.texts.isEmpty && old.id == slide.id)
 

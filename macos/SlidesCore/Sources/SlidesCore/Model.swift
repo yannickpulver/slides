@@ -78,16 +78,19 @@ public struct Slide: Codable, Equatable, Sendable, Identifiable {
     public var style = SlideStyle()
     /// Set once the layout is picked by hand. Until then, drops grow the layout.
     public var layoutChosen = false
-    /// Text over the photos, back to front.
-    public var texts: [TextBox] = []
+    /// Free text and free photos over the slot photos, back to front.
+    public var freeItems: [FreeItem] = []
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case id, layout, columns, span, slots, style, layoutChosen, texts
+        case id, layout, columns, span, slots, style, layoutChosen, freeItems
+        /// Before free photos, only text sat on top.
+        case texts
     }
 
-    /// Projects from before text have no `texts`, from before columns no `columns`.
+    /// Projects from before text have no `texts`, from before columns no `columns`,
+    /// from before free photos `texts` instead of `freeItems`.
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -97,7 +100,28 @@ public struct Slide: Codable, Equatable, Sendable, Identifiable {
         slots = try c.decode([Media?].self, forKey: .slots)
         style = try c.decode(SlideStyle.self, forKey: .style)
         layoutChosen = try c.decodeIfPresent(Bool.self, forKey: .layoutChosen) ?? false
-        texts = try c.decodeIfPresent([TextBox].self, forKey: .texts) ?? []
+        if let items = try c.decodeIfPresent([FreeItem].self, forKey: .freeItems) {
+            freeItems = items
+        } else {
+            freeItems = (try c.decodeIfPresent([TextBox].self, forKey: .texts) ?? []).map(FreeItem.text)
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(layout, forKey: .layout)
+        try c.encode(columns, forKey: .columns)
+        try c.encode(span, forKey: .span)
+        try c.encode(slots, forKey: .slots)
+        try c.encode(style, forKey: .style)
+        try c.encode(layoutChosen, forKey: .layoutChosen)
+        try c.encode(freeItems, forKey: .freeItems)
+    }
+
+    /// The free text boxes, back to front.
+    public var texts: [TextBox] {
+        freeItems.compactMap { if case .text(let box) = $0 { box } else { nil } }
     }
 
     public var isPanorama: Bool { span > 1 }

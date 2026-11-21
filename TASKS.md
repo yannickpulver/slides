@@ -83,3 +83,16 @@ No migration of old projects.
 - [x] Clicked through the canvas with the real cursor: place, drag for width, select, move + snap, width handle, inline edit, Esc, ⌫, arrows
 - [x] Edit › Undo/Redo menu reaches the project (the focus proxy has no undo manager)
 - [ ] ⌘Z keystroke still doesn't undo (also on main): needs a check with a real keypress
+
+## Free photos (design A, see GLOSSARY.md)
+- [x] Model: `FreePhoto`, `PhotoFrame`, `FreeItem`; `Slide.freeItems` replaces `texts` (old projects open), `mediaFiles` keeps them
+- [x] Renderer draws free items in order (PNG, MP4, cover, thumbnails); export decodes them as large as drawn
+- [x] Free items nudged back when the canvas shrinks (span, format)
+- [x] Editor: draw in order, select, move with snapping, corner resize, trackpad rotate, context menu, deselect on empty click
+- [x] Keys: arrows nudge, ⌫ deletes, Esc deselects, ⌥⌘[ / ⌥⌘] order (text too)
+- [x] Inspector: "Free Photo" card on top (rotate, frame, width, order, delete), "Free Photos" card with Add Free Photo…
+- [x] MCP: add/update/remove_free_photo, arrange, get_project lists them
+- [x] Tests: decode old project, render with frame, mediaFiles, keep visible, order
+- [x] Verified in a second app instance: click select, drag, corner resize, ⌥⌘], frame swatch, ⌫ + undo; MCP add/update/arrange/remove, span and format shrink, render
+- [ ] MP4 export of a video slide with a free photo not checked by hand (same renderer as PNG)
+- [x] README feature line

@@ -86,7 +86,12 @@ extension Project {
         guard let index = index(of: id) else { return nil }
         var copy = slides[index]
         copy.id = UUID()
-        copy.texts = copy.texts.map { var box = $0; box.id = UUID(); return box }
+        copy.freeItems = copy.freeItems.map { item in
+            switch item {
+            case .text(var box): box.id = UUID(); return .text(box)
+            case .photo(var photo): photo.id = UUID(); return .photo(photo)
+            }
+        }
         slides.insert(copy, at: index + 1)
         return copy.id
     }
@@ -114,6 +119,8 @@ extension Project {
 
     /// Every media file the project uses, for cleanup and export.
     public var mediaFiles: Set<String> {
-        Set(slides.flatMap { slide in slide.slots.compactMap { $0?.file } + [slide.style.backgroundImage].compactMap(\.self) })
+        Set(slides.flatMap { slide in
+            slide.slots.compactMap { $0?.file } + slide.freePhotos.map(\.file) + [slide.style.backgroundImage].compactMap(\.self)
+        })
     }
 }

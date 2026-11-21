@@ -96,6 +96,12 @@ public struct Exporter: Sendable {
             }
             sizes[media.file] = max(sizes[media.file] ?? 0, size ?? .max)
         }
+        for photo in layout.slide.freePhotos {
+            let size = MediaLoader.imageSize(at: mediaURL(photo.file)).flatMap { mediaSize in
+                drawnLongSide(CGRect(x: 0, y: 0, width: photo.width, height: photo.height), mediaSize: mediaSize)
+            }
+            sizes[photo.file] = max(sizes[photo.file] ?? 0, size ?? .max)
+        }
         var images: [String: CGImage] = [:]
         for (file, size) in sizes {
             images[file] = await MediaLoader.preview(at: mediaURL(file), maxPixelSize: size == .max ? nil : size)

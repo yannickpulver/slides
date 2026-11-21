@@ -14,6 +14,8 @@ struct SlidesTools {
     rows (layout) by 1 to 5 columns, slots numbered row by row, or spans 2 to 6 frames as a panorama with one photo (span). Slides and slots are \
     numbered from 1. Text boxes sit on top, positioned in 1x pixels from the slide's top-left \
     (frameSize in get_project; a panorama's canvas is span × frame width wide, so text can cross the cuts). \
+    Free photos sit on top too, placed anywhere like text, always shown whole, with an optional photo frame. \
+    Free text and free photos share one back-to-front order (order in get_project); arrange moves an item in it. \
     Most tools need an open project: call open_project or create_project first. \
     Use render_slide to see the result.
     """
@@ -77,8 +79,16 @@ struct SlidesTools {
             "size": enumeration(["instagram", "large"], "instagram: 2x (1536 × 2048 for 3:4, default). large: 3x."),
         ], required: ["folder"]),
         tool("add_text", "Adds a text box on top of a slide. Without x or y it's centered on the first frame. Without width it grows with the text; with width it wraps.", textProperties.merging(["slide": slideArg]) { a, _ in a }, required: ["text"]),
-        tool("update_text", "Changes a text box. Only the given fields change.", textProperties.merging(["slide": slideArg, "box": boxArg]) { a, _ in a }, required: ["box"]),
+        tool("update_text", "Changes a text box. Only the given fields change.", textProperties.merging(["slide": slideArg, "box": boxArg, "arrange": arrangeArg]) { a, _ in a }, required: ["box"]),
         tool("remove_text", "Removes a text box.", ["slide": slideArg, "box": boxArg], required: ["box"]),
+        tool("add_free_photo", "Copies photos into the project and puts them on a slide as free photos: shown whole, anywhere on the canvas, on top of the slot photos. Without x and y they're centered. Videos aren't allowed.", freePhotoProperties.merging([
+            "paths": ["type": "array", "items": ["type": "string"], "description": "Absolute file paths of photos."],
+            "slide": slideArg,
+        ]) { a, _ in a }, required: ["paths"]),
+        tool("update_free_photo", "Changes a free photo. Only the given fields change.", freePhotoProperties.merging([
+            "slide": slideArg, "photo": photoArg, "arrange": arrangeArg,
+        ]) { a, _ in a }, required: ["photo"]),
+        tool("remove_free_photo", "Removes a free photo.", ["slide": slideArg, "photo": photoArg], required: ["photo"]),
         tool("list_fonts", "Installed font families, or with family the styles of one family and their PostScript names (for the font field).", [
             "family": string("Family name, e.g. Helvetica Neue."),
         ], readOnly: true),
@@ -90,6 +100,16 @@ struct SlidesTools {
     private static let slideArg = integer("Slide number, 1 = first. Default: the selected slide.")
     private static let slotArg = integer("Slot number, 1 = top.")
     private static let boxArg = integer("Text box number on the slide, 1 = first (see texts in get_project).")
+    private static let photoArg = integer("Free photo number on the slide, 1 = first (see freePhotos in get_project).")
+    private static let arrangeArg = enumeration(["front", "forward", "backward", "back"], "Moves it in the slide's back-to-front order of free text and free photos.")
+    private static let freePhotoProperties: [String: [String: Any]] = [
+        "x": number("Center in 1x pixels from the slide's left."),
+        "y": number("Center in 1x pixels from the slide's top."),
+        "width": number("Width of the photo in 1x pixels, without the frame. The height follows from the photo's aspect ratio."),
+        "angle": number("Rotation in degrees, clockwise, -180...180."),
+        "frame": string("Photo frame color as hex, e.g. #FFFFFF, or \"none\". New photos get a white frame."),
+        "frame_width": number("Photo frame width in 1x pixels, 1...\(Int(PhotoFrame.maxWidth))."),
+    ]
     private static let textProperties: [String: [String: Any]] = [
         "text": string("The text. Newlines start new lines."),
         "x": number("Left edge in 1x pixels from the slide's left."),
@@ -290,13 +310,44 @@ struct SlidesTools {
             let slideID = try slideID(args, in: editor)
             let id = try textID(args, in: editor.slide(slideID))
             let change = try textChange(args)
+            let steps = try arrangeSteps(args, in: editor.slide(slideID))
             editor.updateText(id, in: slideID) { change(&$0) }
+            if let steps { editor.arrange(id, by: steps, in: slideID) }
             return try projectState()
 
         case "remove_text":
             let editor = try editor()
             let slideID = try slideID(args, in: editor)
             editor.removeText(try textID(args, in: editor.slide(slideID)), in: slideID)
+            return try projectState()
+
+        case "add_free_photo":
+            let editor = try editor()
+            let slideID = try slideID(args, in: editor)
+            let urls = try (args.strings("paths") ?? []).map { try existingFile($0) }
+            guard !urls.isEmpty else { throw ToolError("paths must name at least one photo.") }
+            let change = try freePhotoChange(args)
+            let ids = await editor.addFreePhotos(urls, in: slideID, configure: change)
+            var state = try projectState()
+            if ids.count < urls.count {
+                state.insert(["type": "text", "text": "Added \(ids.count) of \(urls.count) files; the rest aren't photos."], at: 0)
+            }
+            return state
+
+        case "update_free_photo":
+            let editor = try editor()
+            let slideID = try slideID(args, in: editor)
+            let id = try photoID(args, in: editor.slide(slideID))
+            let change = try freePhotoChange(args)
+            let steps = try arrangeSteps(args, in: editor.slide(slideID))
+            editor.updatePhoto(id, in: slideID) { change(&$0) }
+            if let steps { editor.arrange(id, by: steps, in: slideID) }
+            return try projectState()
+
+        case "remove_free_photo":
+            let editor = try editor()
+            let slideID = try slideID(args, in: editor)
+            editor.removePhoto(try photoID(args, in: editor.slide(slideID)), in: slideID)
             return try projectState()
 
         case "list_fonts":
@@ -418,6 +469,48 @@ struct SlidesTools {
         return slide.texts[number - 1].id
     }
 
+    private func photoID(_ args: Arguments, in slide: Slide) throws -> FreePhoto.ID {
+        let photos = slide.freePhotos
+        guard let number = args.int("photo"), photos.indices.contains(number - 1) else {
+            throw ToolError(photos.isEmpty ? "This slide has no free photos." : "photo must be 1...\(photos.count).")
+        }
+        return photos[number - 1].id
+    }
+
+    /// Places to move in the back-to-front order for `arrange`, or nil without it.
+    private func arrangeSteps(_ args: Arguments, in slide: Slide) throws -> Int? {
+        guard let value = args.string("arrange") else { return nil }
+        let count = slide.freeItems.count
+        switch value {
+        case "front": return count
+        case "forward": return 1
+        case "backward": return -1
+        case "back": return -count
+        default: throw ToolError("arrange must be front, forward, backward or back.")
+        }
+    }
+
+    /// Checks the free photo fields of a call and returns the change they make.
+    private func freePhotoChange(_ args: Arguments) throws -> (inout FreePhoto) -> Void {
+        let frameColor = try args.string("frame").map { value -> RGB? in
+            if value == "none" { return nil }
+            guard let color = RGB(hex: value) else { throw ToolError("frame must be a hex color like #FFFFFF or none.") }
+            return color
+        }
+        return { photo in
+            if let x = args.double("x") { photo.x = x }
+            if let y = args.double("y") { photo.y = y }
+            if let width = args.double("width") { photo.width = max(width, FreePhoto.minWidth) }
+            if let angle = args.double("angle") { photo.angle = min(max(angle, -180), 180) }
+            if let frameColor {
+                photo.frame = frameColor.map { PhotoFrame(width: photo.frame?.width ?? 16, color: $0) }
+            }
+            if let width = args.double("frame_width"), photo.frame != nil {
+                photo.frame?.width = min(max(width, 1), PhotoFrame.maxWidth)
+            }
+        }
+    }
+
     /// Checks the text fields of a call and returns the change they make.
     private func textChange(_ args: Arguments) throws -> (inout TextBox) -> Void {
         let alignment = try args.string("align").map { value in
@@ -494,6 +587,24 @@ struct SlidesTools {
                         "blur": slide.style.blur,
                         "filmEdge": slide.style.filmEdge.map { $0 == .gateWhite ? "white" : "black" } ?? "none",
                     ] as [String: Any],
+                    "order": slide.freeItems.map { item -> String in
+                        switch item {
+                        case .text(let box): "text \((slide.texts.firstIndex { $0.id == box.id } ?? 0) + 1)"
+                        case .photo(let photo): "photo \((slide.freePhotos.firstIndex { $0.id == photo.id } ?? 0) + 1)"
+                        }
+                    },
+                    "freePhotos": slide.freePhotos.enumerated().map { index, photo in
+                        [
+                            "photo": index + 1,
+                            "file": photo.file,
+                            "x": photo.x,
+                            "y": photo.y,
+                            "width": photo.width,
+                            "height": photo.height,
+                            "angle": photo.angle,
+                            "frame": photo.frame.map { ["color": $0.color.hex, "width": $0.width] as [String: Any] } ?? "none",
+                        ] as [String: Any]
+                    },
                     "texts": slide.texts.enumerated().map { index, box in
                         let size = TextRenderer.size(of: box)
                         return [

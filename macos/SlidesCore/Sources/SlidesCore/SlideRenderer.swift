@@ -75,8 +75,11 @@ public final class SlideRenderer {
             }
         }
 
-        for box in slide.texts {
-            TextRenderer.draw(box, in: context)
+        for item in slide.freeItems {
+            switch item {
+            case .text(let box): TextRenderer.draw(box, in: context)
+            case .photo(let photo): photo.draw(images[photo.file], in: context)
+            }
         }
     }
 
