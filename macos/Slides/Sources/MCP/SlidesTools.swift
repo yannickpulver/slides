@@ -10,7 +10,7 @@ struct SlidesTools {
     static let instructions = """
     Slides is a macOS editor for Instagram-style photo and video carousels. Edits go to the open app live, \
     save automatically, and the user can undo them with ⌘Z (or the undo tool).
-    A project is a list of slides in one format (4:3 or 16:9 portrait frames). A slide holds a grid of photos, 1 to 6 \
+    A project is a list of slides in one format (3:4 or 9:16 portrait frames, or 4:3 landscape frames). A slide holds a grid of photos, 1 to 6 \
     rows (layout) by 1 to 5 columns, slots numbered row by row, or spans 2 to 6 frames as a panorama with one photo (span). Slides and slots are \
     numbered from 1. Text boxes sit on top, positioned in 1x pixels from the slide's top-left \
     (frameSize in get_project; a panorama's canvas is span × frame width wide, so text can cross the cuts). \
@@ -31,7 +31,7 @@ struct SlidesTools {
         tool("get_project", "The open project: name, format, selected slide and every slide with its photos and style.", readOnly: true),
         tool("update_project", "Renames the open project or changes its format.", [
             "name": string("New name."),
-            "format": enumeration(["4:3", "16:9"], "Frame format: 4:3 (768 × 1024) or 16:9 (576 × 1024)."),
+            "format": enumeration(["3:4", "9:16", "4:3"], "Frame format: 3:4 portrait (768 × 1024), 9:16 portrait (576 × 1024) or 4:3 landscape (1024 × 768)."),
         ]),
         tool("select_slide", "Selects a slide, so the editor shows it.", ["slide": slideArg], required: ["slide"]),
         tool("add_slide", "Adds an empty slide and selects it.", [
@@ -69,12 +69,12 @@ struct SlidesTools {
             "zoom": number("1 = photo just covers the slot, up to \(Int(Crop.maxZoom))."),
             "angle": number("Rotation in degrees, clockwise, -\(Int(Crop.maxAngle))...\(Int(Crop.maxAngle)). Decimals allowed, e.g. 1.5 to straighten a horizon. In fill the photo grows so it still covers the slot."),
         ], required: ["slot"]),
-        tool("render_slide", "Renders a slide as PNG at 1x (768 × 1024 for 4:3), one image per panorama frame. Videos show their first frame.", [
+        tool("render_slide", "Renders a slide as PNG at 1x (768 × 1024 for 3:4), one image per panorama frame. Videos show their first frame.", [
             "slide": slideArg,
         ], readOnly: true),
         tool("export", "Exports all slides into a folder: PNG per frame, MP4 for slides with video. Returns the files.", [
             "folder": string("Absolute folder path. Created if missing."),
-            "size": enumeration(["instagram", "large"], "instagram: 2x (1536 × 2048 for 4:3, default). large: 3x."),
+            "size": enumeration(["instagram", "large"], "instagram: 2x (1536 × 2048 for 3:4, default). large: 3x."),
         ], required: ["folder"]),
         tool("add_text", "Adds a text box on top of a slide. Without x or y it's centered on the first frame. Without width it grows with the text; with width it wraps.", textProperties.merging(["slide": slideArg]) { a, _ in a }, required: ["text"]),
         tool("update_text", "Changes a text box. Only the given fields change.", textProperties.merging(["slide": slideArg, "box": boxArg]) { a, _ in a }, required: ["box"]),

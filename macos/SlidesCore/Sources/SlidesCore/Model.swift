@@ -16,25 +16,36 @@ public struct Project: Codable, Equatable, Sendable, Identifiable {
     public var frameCount: Int { slides.reduce(0) { $0 + $1.span } }
 }
 
-/// Size of one frame at 1x. Exports run at 2x or more: 2x of 4:3 is 1536 × 2048,
+/// Size of one frame at 1x. Exports run at 2x or more: 2x of 3:4 is 1536 × 2048,
 /// the largest photo Instagram keeps.
 public enum Format: String, Codable, CaseIterable, Sendable {
     case portrait4x3
     case portrait16x9
+    case landscape4x3
 
     public var width: Double {
         switch self {
         case .portrait4x3: 768
         case .portrait16x9: 576
+        case .landscape4x3: 1024
         }
     }
 
-    public var height: Double { 1024 }
+    public var height: Double {
+        switch self {
+        case .landscape4x3: 768
+        default: 1024
+        }
+    }
+
+    /// The longer side; film edges scale with it so portrait and landscape frames get the same edge.
+    public var longSide: Double { max(width, height) }
 
     public var label: String {
         switch self {
-        case .portrait4x3: "4:3"
-        case .portrait16x9: "16:9"
+        case .portrait4x3: "3:4"
+        case .portrait16x9: "9:16"
+        case .landscape4x3: "4:3"
         }
     }
 }
@@ -220,7 +231,7 @@ public enum FilmEdge: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// Bundled portrait mask for one 4:3 frame. `preview` is a 1024 px copy for the editor.
+    /// Bundled portrait mask for one 3:4 frame. `preview` is a 1024 px copy for the editor.
     public func url(preview: Bool) -> URL? {
         Bundle.module.url(
             forResource: "\(rawValue)_portrait",
@@ -234,7 +245,7 @@ public enum FilmEdge: String, Codable, CaseIterable, Sendable {
 
     /// Pieces to draw the mask over `rect`: `source` in mask pixels (y down), `target` in `rect`'s units.
     ///
-    /// `frameHeight` is one frame's height in `rect`'s units; it sets how thick corners and edges are.
+    /// `frameHeight` is one frame's long side in `rect`'s units; it sets how thick corners and edges are.
     public static func pieces(maskSize: CGSize, in rect: CGRect, frameHeight: Double) -> [(source: CGRect, target: CGRect)] {
         let c = (maskSize.height * cap).rounded()
         guard rect.width > 0, rect.height > 0, maskSize.width > 2 * c, maskSize.height > 2 * c else { return [] }

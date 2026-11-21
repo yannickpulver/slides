@@ -309,7 +309,7 @@ final class EditorModel {
 
     // MARK: - Export
 
-    /// Export sizes: Instagram keeps photos up to 2× (1536 × 2048 for 4:3).
+    /// Export sizes: Instagram keeps photos up to 2× (1536 × 2048 for 3:4).
     enum ExportSize: Int, CaseIterable {
         case instagram = 2
         case large = 3
