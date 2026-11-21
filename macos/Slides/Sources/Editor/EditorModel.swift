@@ -24,6 +24,8 @@ final class EditorModel {
     private(set) var editingTextID: TextBox.ID?
     /// Style of the last text the user styled, for the next new box.
     @ObservationIgnored private var textStyle: TextBox?
+    /// Selected free photo; free text and a free photo are never selected at once.
+    private(set) var selectedPhotoID: FreePhoto.ID?
 
     @ObservationIgnored weak var undoManager: UndoManager?
     @ObservationIgnored private var lastEdit: (key: String, time: Date)?
@@ -53,6 +55,8 @@ final class EditorModel {
     func edit(_ key: String? = nil, _ change: (inout Project) -> Void) {
         let before = project
         change(&project)
+        // A shorter panorama or a narrower format must not lose free text or photos off the side.
+        project.keepFreeItemsOnCanvas()
         guard project != before else { return }
         let now = Date()
         let merges = key != nil && lastEdit?.key == key && now.timeIntervalSince(lastEdit!.time) < 1
@@ -107,6 +111,7 @@ final class EditorModel {
         guard id != selectedSlideID else { return }
         endTextEditing()
         selectedTextID = nil
+        selectedPhotoID = nil
         selectedSlideID = id
     }
 
@@ -162,6 +167,7 @@ final class EditorModel {
         editSlide(slideID) { $0.addText(box) }
         placingText = false
         if slideID == selectedSlideID {
+            selectedPhotoID = nil
             selectedTextID = box.id
             editingTextID = text.isEmpty ? box.id : nil
         }
@@ -188,10 +194,14 @@ final class EditorModel {
     func selectText(_ id: TextBox.ID?) {
         if id != editingTextID { endTextEditing() }
         selectedTextID = id
-        if id != nil { placingText = false }
+        if id != nil {
+            placingText = false
+            selectedPhotoID = nil
+        }
     }
 
     func editText(_ id: TextBox.ID) {
+        selectedPhotoID = nil
         selectedTextID = id
         editingTextID = id
         placingText = false
@@ -205,6 +215,70 @@ final class EditorModel {
             removeText(id)
         }
     }
+
+    // MARK: - Free photos
+
+    var selectedPhoto: FreePhoto? {
+        guard let id = selectedPhotoID else { return nil }
+        return currentSlide.freePhotos.first { $0.id == id }
+    }
+
+    func selectPhoto(_ id: FreePhoto.ID?) {
+        endTextEditing()
+        selectedTextID = nil
+        selectedPhotoID = id
+        if id != nil { placingText = false }
+    }
+
+    /// Lets the user pick photos and puts them on the selected slide as free photos.
+    func pickFreePhotos() {
+        let urls = FilePanel.pickMedia(imagesOnly: true)
+        let slideID = selectedSlideID
+        if !urls.isEmpty { Task { await addFreePhotos(urls, in: slideID) } }
+    }
+
+    /// Imports photos and places them as free photos in the middle of the slide, each a bit
+    /// lower right than the one before. Videos are left out. Selects the last one.
+    @discardableResult
+    func addFreePhotos(_ urls: [URL], in slideID: Slide.ID? = nil, configure: (inout FreePhoto) -> Void = { _ in }) async -> [FreePhoto.ID] {
+        let slideID = slideID ?? selectedSlideID
+        let media = await importMedia(urls).filter { $0.kind == .image }
+        guard !media.isEmpty, let slide = project.slides.first(where: { $0.id == slideID }) else { return [] }
+        let format = project.format
+        let canvas = SlideLayout(slide: slide, format: format).canvas
+        var photos: [FreePhoto] = []
+        for (index, item) in media.enumerated() {
+            let size = MediaLoader.imageSize(at: mediaURL(item.file)) ?? CGSize(width: 1, height: 1)
+            let aspect = size.height / max(size.width, 1)
+            // About half the frame, so it reads as placed on the slide rather than filling it.
+            let width = min(format.width * 0.55, format.height * 0.55 / aspect).rounded()
+            let offset = Double(index) * 24
+            var photo = FreePhoto(file: item.file, x: canvas.midX + offset, y: canvas.midY + offset, width: width, aspect: aspect)
+            configure(&photo)
+            photos.append(photo)
+        }
+        editSlide(slideID) { slide in photos.forEach { slide.addFreePhoto($0) } }
+        if slideID == selectedSlideID, let last = photos.last { selectPhoto(last.id) }
+        return photos.map(\.id)
+    }
+
+    /// Changes a free photo. `key` merges a drag or a slider into one undo step.
+    func updatePhoto(_ id: FreePhoto.ID, in slideID: Slide.ID? = nil, _ key: String? = nil, _ change: (inout FreePhoto) -> Void) {
+        editSlide(slideID, key.map { "photo-\(id)-\($0)" }) { $0.updateFreePhoto(id, change) }
+    }
+
+    func removePhoto(_ id: FreePhoto.ID, in slideID: Slide.ID? = nil) {
+        if selectedPhotoID == id { selectedPhotoID = nil }
+        editSlide(slideID) { $0.removeFreeItem(id) }
+    }
+
+    /// Moves free text or a free photo toward the front (positive) or the back (negative).
+    func arrange(_ id: UUID, by steps: Int, in slideID: Slide.ID? = nil) {
+        editSlide(slideID) { $0.arrangeFreeItem(id, by: steps) }
+    }
+
+    /// The selected free text or free photo.
+    var selectedFreeItemID: UUID? { selectedTextID ?? selectedPhotoID }
 
     func moveSlide(_ id: Slide.ID, to destination: Int) {
         edit { $0.moveSlide(id, to: destination) }
@@ -294,8 +368,8 @@ final class EditorModel {
     private static func renderCover(_ project: Project, mediaURL: @Sendable (String) -> URL) async -> CGImage? {
         let slide = project.slides[0]
         var images: [String: CGImage] = [:]
-        for media in slide.slots.compactMap(\.self) {
-            images[media.file] = await MediaLoader.preview(at: mediaURL(media.file), maxPixelSize: 1200)
+        for file in slide.slots.compactMap(\.self).map(\.file) + slide.freePhotos.map(\.file) {
+            images[file] = await MediaLoader.preview(at: mediaURL(file), maxPixelSize: 1200)
         }
         let background = slide.style.backgroundImage.flatMap { MediaLoader.image(at: mediaURL($0), maxPixelSize: 1200) }
         let renderer = SlideRenderer(

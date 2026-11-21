@@ -2,19 +2,29 @@ import AppKit
 import SlidesCore
 import SwiftUI
 
-/// Draws a slide's text with the export's renderer, so the screen matches the files.
-struct TextDrawing: View {
-    let texts: [TextBox]
+/// Draws a slide's free text and free photos back to front with the export's code, so the screen matches the files.
+struct FreeItemsDrawing: View {
+    let items: [FreeItem]
     let scale: Double
     /// The box being edited, drawn by its text field instead.
-    var hidden: TextBox.ID?
+    var hiddenText: TextBox.ID?
+    let mediaURL: (String) -> URL
 
     var body: some View {
+        // Read the photos here, not in the canvas, so the view redraws when a decode lands.
+        let images = Dictionary(items.compactMap { item -> (String, CGImage)? in
+            guard case .photo(let photo) = item, let image = MediaCache.shared.image(for: mediaURL(photo.file)) else { return nil }
+            return (photo.file, image)
+        }, uniquingKeysWith: { first, _ in first })
         Canvas { context, _ in
             context.withCGContext { cg in
+                cg.interpolationQuality = .high
                 cg.scaleBy(x: scale, y: scale)
-                for box in texts where box.id != hidden {
-                    TextRenderer.draw(box, in: cg)
+                for item in items {
+                    switch item {
+                    case .text(let box): if box.id != hiddenText { TextRenderer.draw(box, in: cg) }
+                    case .photo(let photo): photo.draw(images[photo.file], in: cg)
+                    }
                 }
             }
         }
@@ -22,29 +32,38 @@ struct TextDrawing: View {
     }
 }
 
-/// Select, move, resize and edit text boxes, and place new ones with the text tool. Works like Figma:
-/// click selects, drag moves (snapping to the centers), the side handles set a wrapping width,
-/// a double-click edits.
-struct TextOverlay: View {
+/// Select, move, resize and edit free text and free photos, and place new text with the text tool. Works like Figma:
+/// click selects, drag moves (snapping to the centers), handles resize, a double-click edits text.
+/// Hit areas follow the back-to-front order, so the front item takes the click.
+struct FreeItemsOverlay: View {
     let editor: EditorModel
     let slide: Slide
     let layout: SlideLayout
     let scale: Double
 
-    @State private var dragStart: CGPoint?
-    @State private var guides: [Guide] = []
+    @State var dragStart: CGPoint?
+    @State var guides: [Guide] = []
     @State private var newBox: CGRect?
+    /// The photo as it was when a drag, resize or turn started.
+    @State var photoStart: FreePhoto?
+
+    static let space = "freeItems"
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             if editor.placingText {
                 placement
             }
-            ForEach(slide.texts) { box in
-                if box.id == editor.editingTextID {
-                    editing(box)
-                } else {
-                    frame(box)
+            ForEach(slide.freeItems) { item in
+                switch item {
+                case .text(let box):
+                    if box.id == editor.editingTextID {
+                        editing(box)
+                    } else {
+                        frame(box)
+                    }
+                case .photo(let photo):
+                    photoFrame(photo)
                 }
             }
             ForEach(guides, id: \.self) { guide in
@@ -58,6 +77,7 @@ struct TextOverlay: View {
             }
         }
         .frame(width: layout.canvas.width * scale, height: layout.canvas.height * scale, alignment: .topLeading)
+        .coordinateSpace(.named(Self.space))
     }
 
     // MARK: - Text tool
@@ -106,7 +126,7 @@ struct TextOverlay: View {
                             dragStart = CGPoint(x: box.x, y: box.y)
                         }
                         guard let start = dragStart, hypot(value.translation.width, value.translation.height) > 2 else { return }
-                        let moved = snapped(box, to: CGPoint(
+                        let moved = snapped(TextRenderer.size(of: box), to: CGPoint(
                             x: (start.x + value.translation.width / scale).rounded(),
                             y: (start.y + value.translation.height / scale).rounded()
                         ))
@@ -118,6 +138,7 @@ struct TextOverlay: View {
                     }
             )
             .simultaneousGesture(TapGesture(count: 2).onEnded { editor.editText(box.id) })
+            .contextMenu { arrangeMenu(box.id) { editor.removeText(box.id) } }
         if selected {
             WidthHandle(rect: rect, edge: .leading) { dx in
                 resize(box, leading: dx)
@@ -166,10 +187,9 @@ struct TextOverlay: View {
         let position: Double
     }
 
-    /// Snaps the box center to the frame centers (each panorama part and the whole canvas),
-    /// and shows a guide where it snapped.
-    private func snapped(_ box: TextBox, to point: CGPoint) -> CGPoint {
-        let size = TextRenderer.size(of: box)
+    /// Snaps the center of a box of `size` with its top-left at `point` to the frame centers
+    /// (each panorama part and the whole canvas), and shows a guide where it snapped.
+    func snapped(_ size: CGSize, to point: CGPoint) -> CGPoint {
         let threshold = 6 / scale
         var result = point
         var found: [Guide] = []
@@ -203,8 +223,8 @@ struct TextOverlay: View {
     }
 }
 
-/// Invisible hit area of a text box: outlined on hover and when selected.
-private struct HoverFrame: View {
+/// Invisible hit area of free text or a free photo: outlined on hover and when selected.
+struct HoverFrame: View {
     let selected: Bool
     @State private var hovering = false
 

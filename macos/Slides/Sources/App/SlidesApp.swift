@@ -60,6 +60,14 @@ struct SlidesApp: App {
                     Button("Next Slide") { app.editor?.selectNext() }
                         .keyboardShortcut("]")
                     Divider()
+                    // ⌘[ and ⌘] already switch slides, so the order takes ⌥⌘.
+                    Button("Bring Forward") { app.editor.map { editor in editor.selectedFreeItemID.map { editor.arrange($0, by: 1) } } }
+                        .keyboardShortcut("]", modifiers: [.command, .option])
+                        .disabled(app.editor?.selectedFreeItemID == nil)
+                    Button("Send Backward") { app.editor.map { editor in editor.selectedFreeItemID.map { editor.arrange($0, by: -1) } } }
+                        .keyboardShortcut("[", modifiers: [.command, .option])
+                        .disabled(app.editor?.selectedFreeItemID == nil)
+                    Divider()
                     Button("Delete Slide") { app.editor.map { $0.removeSlide($0.selectedSlideID) } }
                         .disabled((app.editor?.project.slides.count ?? 0) < 2)
                 }

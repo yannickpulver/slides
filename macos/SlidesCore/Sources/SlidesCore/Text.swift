@@ -173,16 +173,17 @@ extension Slide {
     /// Adds a text box and returns its id.
     @discardableResult
     public mutating func addText(_ box: TextBox) -> TextBox.ID {
-        texts.append(box)
+        freeItems.append(.text(box))
         return box.id
     }
 
     public mutating func updateText(_ id: TextBox.ID, _ change: (inout TextBox) -> Void) {
-        guard let index = texts.firstIndex(where: { $0.id == id }) else { return }
-        change(&texts[index])
+        guard let index = freeItems.firstIndex(where: { $0.id == id }), case .text(var box) = freeItems[index] else { return }
+        change(&box)
+        freeItems[index] = .text(box)
     }
 
     public mutating func removeText(_ id: TextBox.ID) {
-        texts.removeAll { $0.id == id }
+        removeFreeItem(id)
     }
 }

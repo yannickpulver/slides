@@ -35,22 +35,29 @@ struct SlideView: View {
                 if let edge = slide.style.filmEdge {
                     FilmEdgeImage(edge: edge, rect: layout.filmEdgeRect(mediaSizes: mediaSizes).scaled(scale), frameHeight: layout.format.longSide * scale)
                 }
-                TextDrawing(texts: slide.texts, scale: scale, hidden: editor?.editingTextID)
+                FreeItemsDrawing(items: slide.freeItems, scale: scale, hiddenText: editor?.editingTextID, mediaURL: mediaURL)
                 if editor != nil, slide.isPanorama {
                     PanoramaCuts(layout: layout, scale: scale)
                 }
                 if let editor {
-                    TextOverlay(editor: editor, slide: slide, layout: layout, scale: scale)
+                    FreeItemsOverlay(editor: editor, slide: slide, layout: layout, scale: scale)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
             .clipped()
             .simultaneousGesture(SpatialTapGesture().onEnded { value in
-                // A click next to the text ends editing and drops the selection, like in Figma.
-                guard let editor, editor.selectedTextID != nil else { return }
+                // A click next to the text or photos ends editing and drops the selection, like in Figma.
+                guard let editor, editor.selectedFreeItemID != nil else { return }
                 let point = CGPoint(x: value.location.x / scale, y: value.location.y / scale)
-                if !slide.texts.contains(where: { TextRenderer.rect(of: $0).insetBy(dx: -6 / scale, dy: -6 / scale).contains(point) }) {
+                let hit = slide.freeItems.contains { item in
+                    switch item {
+                    case .text(let box): TextRenderer.rect(of: box).insetBy(dx: -6 / scale, dy: -6 / scale).contains(point)
+                    case .photo(let photo): photo.contains(point)
+                    }
+                }
+                if !hit {
                     editor.selectText(nil)
+                    editor.selectPhoto(nil)
                 }
             }, isEnabled: editor != nil)
         }

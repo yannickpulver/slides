@@ -14,10 +14,14 @@ struct InspectorView: View {
                 if let box = editor.selectedText {
                     TextCard(editor: editor, box: box)
                 }
+                if let photo = editor.selectedPhoto {
+                    FreePhotoCard(editor: editor, photo: photo)
+                }
                 FormatCard(editor: editor)
                 LayoutCard(editor: editor, slide: slide)
                 BackgroundCard(editor: editor, slide: slide)
                 PhotoCard(editor: editor, slide: slide)
+                FreePhotosCard(editor: editor)
                 ExportCard(editor: editor)
             }
             .padding(16)
@@ -374,13 +378,14 @@ private struct PhotoCard: View {
 private struct AngleSlider: View {
     let label: String
     let value: Double
+    var limit = Crop.maxAngle
     let onChange: (Double) -> Void
 
     var body: some View {
         Row(label: label) {
-            Slider(value: Binding(get: { value }, set: { onChange(($0 * 10).rounded() / 10) }), in: -Crop.maxAngle...Crop.maxAngle)
+            Slider(value: Binding(get: { value }, set: { onChange(($0 * 10).rounded() / 10) }), in: -limit...limit)
                 .controlSize(.small)
-            NumberField(value: value, placeholder: "0", suffix: "°", help: "Rotation in degrees, clockwise, ±\(Int(Crop.maxAngle))") { value in
+            NumberField(value: value, placeholder: "0", suffix: "°", help: "Rotation in degrees, clockwise, ±\(Int(limit))") { value in
                 onChange(value ?? 0)
             }
             .frame(width: 64)
@@ -388,6 +393,101 @@ private struct AngleSlider: View {
         .contextMenu {
             Button("Reset Rotation") { onChange(0) }.disabled(value == 0)
         }
+    }
+}
+
+// MARK: - Free photos
+
+/// Adds free photos to the selected slide.
+private struct FreePhotosCard: View {
+    let editor: EditorModel
+
+    var body: some View {
+        Card(title: "Free Photos", icon: "library-photo") {
+            Button(action: editor.pickFreePhotos) {
+                Label { Text("Add Free Photo…") } icon: { TablerIcon("photo-plus", size: 14) }
+                    .frame(maxWidth: .infinity)
+            }
+            if editor.selectedPhoto == nil {
+                Text("Placed in the middle. Drag to move, corners to resize.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// The selected free photo: rotation, photo frame and order.
+private struct FreePhotoCard: View {
+    let editor: EditorModel
+    let photo: FreePhoto
+
+    private func update(_ key: String? = nil, _ change: @escaping (inout FreePhoto) -> Void) {
+        editor.updatePhoto(photo.id, key, change)
+    }
+
+    var body: some View {
+        let frame = photo.frame
+        Card(title: "Free Photo", icon: "library-photo") {
+            Button { editor.removePhoto(photo.id) } label: { TablerIcon("trash", size: 15) }
+                .buttonStyle(.borderless)
+                .help("Delete photo (⌫)")
+        } content: {
+            AngleSlider(label: "Rotate", value: photo.angle, limit: 180) { angle in
+                update("angle") { $0.angle = angle }
+            }
+            Row(label: "Frame") {
+                HStack(spacing: 8) {
+                    NoFrameSwatch(selected: frame == nil) { update { $0.frame = nil } }
+                    Swatch(color: .white, selected: frame?.color == .white) { update { $0.frame = PhotoFrame(width: $0.frame?.width ?? 16, color: .white) } }
+                    Swatch(color: .black, selected: frame?.color == .black) { update { $0.frame = PhotoFrame(width: $0.frame?.width ?? 16, color: .black) } }
+                    ColorPicker("Frame color", selection: Binding(
+                        get: { Color(frame?.color ?? .white) },
+                        set: { color in update("frame-color") { $0.frame = PhotoFrame(width: $0.frame?.width ?? 16, color: RGB(NSColor(color))) } }
+                    ), supportsOpacity: false)
+                    .labelsHidden()
+                }
+            }
+            if let frame {
+                PixelSlider(label: "Width", value: frame.width, range: 1...PhotoFrame.maxWidth) { width in
+                    update("frame-width") { $0.frame?.width = width }
+                }
+            }
+            Row(label: "Order") {
+                HStack(spacing: 6) {
+                    Button { editor.arrange(photo.id, by: -1) } label: {
+                        Text("Back").frame(maxWidth: .infinity)
+                    }
+                    .help("Send Backward (⌥⌘[)")
+                    Button { editor.arrange(photo.id, by: 1) } label: {
+                        Text("Forward").frame(maxWidth: .infinity)
+                    }
+                    .help("Bring Forward (⌥⌘])")
+                }
+                .controlSize(.small)
+            }
+        }
+    }
+}
+
+/// "No frame": a gray circle crossed out in red.
+private struct NoFrameSwatch: View {
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(.quaternary)
+                .frame(width: 18, height: 18)
+                .overlay(Rectangle().fill(.red).frame(width: 1.5).rotationEffect(.degrees(45)))
+                .clipShape(Circle())
+                .overlay(Circle().strokeBorder(.separator, lineWidth: 1))
+                .padding(2)
+                .overlay(Circle().strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+        .help("No frame")
     }
 }
 
