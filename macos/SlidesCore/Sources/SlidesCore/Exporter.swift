@@ -11,10 +11,12 @@ public struct Exporter: Sendable {
     public let project: Project
     public let mediaURL: @Sendable (String) -> URL
     public let scale: Int
+    public let sharpening: Sharpening
 
-    public init(project: Project, scale: Int, mediaURL: @escaping @Sendable (String) -> URL) {
+    public init(project: Project, scale: Int, sharpening: Sharpening = .standard, mediaURL: @escaping @Sendable (String) -> URL) {
         self.project = project
         self.scale = scale
+        self.sharpening = sharpening
         self.mediaURL = mediaURL
     }
 
@@ -85,7 +87,7 @@ public struct Exporter: Sendable {
         return (0..<layout.slide.span).compactMap { renderer.render(part: $0) }
     }
 
-    /// Photos decoded as large as they're drawn, plus video posters so a video slide has pixels before its first frame.
+    /// Photos decoded as large as they're drawn and sharpened if shrunk, plus video posters so a video slide has pixels before its first frame.
     private func loadImages(for layout: SlideLayout) async -> [String: CGImage] {
         // Long side each file is drawn at, .max = full size. A file in two slots takes the larger.
         var sizes: [String: Int] = [:]
@@ -104,7 +106,14 @@ public struct Exporter: Sendable {
         }
         var images: [String: CGImage] = [:]
         for (file, size) in sizes {
-            images[file] = await MediaLoader.preview(at: mediaURL(file), maxPixelSize: size == .max ? nil : size)
+            let url = mediaURL(file)
+            guard let image = await MediaLoader.preview(at: url, maxPixelSize: size == .max ? nil : size) else { continue }
+            // Shrunk photos get output sharpening; video posters stay as they are, like the video itself.
+            if size != .max, MediaLoader.kind(of: url) == .image, let full = MediaLoader.imageSize(at: url) {
+                images[file] = sharpening.apply(to: image, fullLongSide: max(full.width, full.height))
+            } else {
+                images[file] = image
+            }
         }
         return images
     }

@@ -17,6 +17,10 @@ final class EditorModel {
     var exportError: String?
     var renaming = false
     var exportSize = ExportSize.instagram
+    /// Remembered across projects and launches.
+    var exportSharpening = Sharpening(rawValue: UserDefaults.standard.string(forKey: "exportSharpening") ?? "") ?? .standard {
+        didSet { UserDefaults.standard.set(exportSharpening.rawValue, forKey: "exportSharpening") }
+    }
 
     /// Text tool: the next click on the slide places a text box.
     var placingText = false
@@ -439,14 +443,15 @@ final class EditorModel {
     }
 
     /// Writes all frames into `folder` and returns the files. Fails while another export runs.
-    func exportFiles(to folder: URL, size: ExportSize = .instagram) async throws -> [URL] {
+    /// Without `sharpening` it uses the one picked in the export card.
+    func exportFiles(to folder: URL, size: ExportSize = .instagram, sharpening: Sharpening? = nil) async throws -> [URL] {
         guard exportProgress == nil else { throw CocoaError(.userCancelled) }
         saveNow()
         exportProgress = 0
         defer { exportProgress = nil }
         let library = library
         let projectURL = url
-        let exporter = Exporter(project: project, scale: size.rawValue) { library.mediaURL($0, in: projectURL) }
+        let exporter = Exporter(project: project, scale: size.rawValue, sharpening: sharpening ?? exportSharpening) { library.mediaURL($0, in: projectURL) }
         do {
             return try await exporter.export(to: folder) { fraction in
                 Task { @MainActor in
