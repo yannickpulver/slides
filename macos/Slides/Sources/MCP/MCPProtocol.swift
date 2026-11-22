@@ -68,6 +68,7 @@ struct Arguments {
 
     func has(_ key: String) -> Bool { values[key] != nil && !(values[key] is NSNull) }
     func string(_ key: String) -> String? { values[key] as? String }
+    func bool(_ key: String) -> Bool? { values[key] as? Bool }
     func double(_ key: String) -> Double? { (values[key] as? NSNumber)?.doubleValue ?? string(key).flatMap(Double.init) }
     func int(_ key: String) -> Int? { double(key).map { Int($0) } }
     func strings(_ key: String) -> [String]? { values[key] as? [String] ?? string(key).map { [$0] } }

@@ -177,6 +177,8 @@ struct Segmented<Value: Equatable>: NSViewRepresentable {
     var fill = false
     /// Icon segments are only as wide as the icon otherwise.
     var minSegmentWidth: CGFloat = 0
+    /// Equal segments need the widest label times the count; proportional ones fit long labels in a narrow column.
+    var distribution = NSSegmentedControl.Distribution.fillEqually
     let onPick: (Value) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -185,7 +187,7 @@ struct Segmented<Value: Equatable>: NSViewRepresentable {
         let control = NSSegmentedControl()
         control.segmentCount = segments.count
         control.trackingMode = .selectOne
-        control.segmentDistribution = .fillEqually
+        control.segmentDistribution = distribution
         control.target = context.coordinator
         control.action = #selector(Coordinator.picked(_:))
         for (index, segment) in segments.enumerated() {
@@ -480,6 +482,13 @@ private struct PhotoCard: View {
                     fill: true
                 ) { editor.setFilmEdge($0) }
             }
+            Row(label: "Show crop", labelWidth: nil) {
+                Toggle("", isOn: Binding(get: { slide.style.showCrop }, set: { editor.setShowCrop($0) }))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .help("Whole photo, dimmed, with the crop as a box and thirds. Also in the export.")
+            }
         }
     }
 }
@@ -622,11 +631,12 @@ private struct ExportCard: View {
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Sharpening").foregroundStyle(.secondary)
-                Picker("Sharpening", selection: $editor.exportSharpening) {
-                    ForEach(Sharpening.allCases, id: \.self) { Text($0.name).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                Segmented(
+                    segments: Sharpening.allCases.map { .init(value: $0, title: $0.name) },
+                    selection: editor.exportSharpening,
+                    fill: true,
+                    distribution: .fillProportionally
+                ) { editor.exportSharpening = $0 }
                 .help("Sharpens photos that are exported smaller than their original")
             }
             Button { editor.exportWithPanel() } label: {

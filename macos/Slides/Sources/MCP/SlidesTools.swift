@@ -56,6 +56,7 @@ struct SlidesTools {
             "background_image": string("Absolute path of a photo for a blurred background, or \"\" to remove it."),
             "blur": number("Blur radius of the background photo in 1x pixels, 0...\(Int(SlideStyle.maxBlur))."),
             "film_edge": enumeration(["none", "white", "black"], "Thin film-gate edge over each photo."),
+            "show_crop": ["type": "boolean", "description": "Each slot shows its whole photo dimmed, with the crop as a bright box and thirds grid (also exported)."],
         ]),
         tool("add_media", "Copies photos or videos into the project and puts them on a slide. Fills empty slots first; until a layout is chosen by hand, the layout grows to fit up to 3.", [
             "paths": ["type": "array", "items": ["type": "string"], "description": "Absolute file paths of photos or videos."],
@@ -435,6 +436,7 @@ struct SlidesTools {
             if let blur = args.double("blur") { slide.style.blur = min(max(blur, 0), SlideStyle.maxBlur) }
             if let color { slide.style.color = color }
             if let filmEdge { slide.style.filmEdge = filmEdge }
+            if let showCrop = args.bool("show_crop") { slide.style.showCrop = showCrop }
             if let background { slide.style.backgroundImage = background }
         }
         return try projectState()
@@ -590,6 +592,7 @@ struct SlidesTools {
                         "backgroundImage": slide.style.backgroundImage ?? NSNull(),
                         "blur": slide.style.blur,
                         "filmEdge": slide.style.filmEdge.map { $0 == .gateWhite ? "white" : "black" } ?? "none",
+                        "showCrop": slide.style.showCrop,
                     ] as [String: Any],
                     "order": slide.freeItems.map { item -> String in
                         switch item {

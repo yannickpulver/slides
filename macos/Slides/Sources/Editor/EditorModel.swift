@@ -97,6 +97,7 @@ final class EditorModel {
     func setBlur(_ blur: Double) { editSlide(nil, "blur") { $0.style.blur = blur } }
     func setFit(_ fit: Fit) { editSlide { $0.style.fit = fit } }
     func setFilmEdge(_ edge: FilmEdge?) { editSlide { $0.style.filmEdge = edge } }
+    func setShowCrop(_ on: Bool) { editSlide { $0.style.showCrop = on } }
     func clearBackgroundImage() { editSlide { $0.style.backgroundImage = nil } }
     func removeMedia(slot: Int, in slideID: Slide.ID) { editSlide(slideID) { $0.removeMedia(at: slot) } }
 

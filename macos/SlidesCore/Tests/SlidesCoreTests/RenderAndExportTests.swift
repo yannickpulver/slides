@@ -5,6 +5,24 @@ import Testing
 @testable import SlidesCore
 
 struct RenderTests {
+    @Test func showCropDimsTheRestOfThePhoto() {
+        var slide = Slide()
+        slide.place([Media(file: "red", kind: .image, crop: Crop(zoom: 2))], at: nil)
+        slide.style.showCrop = true
+        let renderer = SlideRenderer(
+            layout: SlideLayout(slide: slide, format: .portrait4x3),
+            scale: 1,
+            images: ["red": Fixtures.image(width: 300, height: 400, color: RGB(r: 1, g: 0, b: 0))],
+            background: nil
+        )
+        let image = renderer.render(part: 0)!
+        // Outside the box (192...576 × 256...768): dimmed. Inside, off the lines: as is.
+        #expect((110...120).contains(image.pixel(x: 50, y: 50).r))
+        #expect(image.pixel(x: 250, y: 300) == (255, 0, 0))
+        // The outline is white.
+        #expect(image.pixel(x: 300, y: 257) == (255, 255, 255))
+    }
+
     @Test func borderShowsSlideColor() {
         var slide = Slide()
         slide.place([Media(file: "red", kind: .image)], at: nil)

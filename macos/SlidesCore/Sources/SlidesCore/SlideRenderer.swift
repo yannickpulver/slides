@@ -57,7 +57,11 @@ public final class SlideRenderer {
             guard visible.intersects(partRect) else { continue }
             context.saveGState()
             context.clip(to: visible)
-            Self.draw(image, in: layout.mediaRect(slot: index, mediaSize: mediaSize, crop: media.crop), angle: media.crop.angle, context: context)
+            if slide.style.showCrop {
+                drawCropPreview(image, preview: layout.cropPreview(slot: index, mediaSize: mediaSize, crop: media.crop), angle: media.crop.angle, in: context)
+            } else {
+                Self.draw(image, in: layout.mediaRect(slot: index, mediaSize: mediaSize, crop: media.crop), angle: media.crop.angle, context: context)
+            }
             context.restoreGState()
         }
 
@@ -81,6 +85,23 @@ public final class SlideRenderer {
             case .photo(let photo): photo.draw(images[photo.file], in: context)
             }
         }
+    }
+
+    /// Show Crop: the whole photo dimmed, the crop bright on top, with an outline and thirds.
+    private func drawCropPreview(_ image: CGImage, preview: CropPreview, angle: Double, in context: CGContext) {
+        Self.draw(image, in: preview.photo, angle: angle, dim: CropPreview.dim, context: context)
+        context.saveGState()
+        context.clip(to: preview.box)
+        Self.draw(image, in: preview.photo, angle: angle, context: context)
+        context.restoreGState()
+
+        context.setStrokeColor(CGColor(gray: 1, alpha: 0.85))
+        context.setLineWidth(CropPreview.lineWidth)
+        for (start, end) in preview.thirds {
+            context.strokeLineSegments(between: [start, end])
+        }
+        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
+        context.stroke(preview.box.insetBy(dx: CropPreview.lineWidth / 2, dy: CropPreview.lineWidth / 2))
     }
 
     /// Background image for one part: covered over the whole slide, blurred, cut to the part.
@@ -138,7 +159,8 @@ public final class SlideRenderer {
     }
 
     /// Draws upright in a y-down context, turned clockwise by `angle` degrees around the rect's center.
-    static func draw(_ image: CGImage, in rect: CGRect, angle: Double = 0, context: CGContext) {
+    /// `dim` lays black of that opacity over the image.
+    static func draw(_ image: CGImage, in rect: CGRect, angle: Double = 0, dim: Double = 0, context: CGContext) {
         context.saveGState()
         if angle != 0 {
             let radians = min(max(angle, -Crop.maxAngle), Crop.maxAngle) * .pi / 180
@@ -149,6 +171,10 @@ public final class SlideRenderer {
         context.translateBy(x: rect.minX, y: rect.maxY)
         context.scaleBy(x: 1, y: -1)
         context.draw(image, in: CGRect(origin: .zero, size: rect.size))
+        if dim > 0 {
+            context.setFillColor(CGColor(gray: 0, alpha: dim))
+            context.fill(CGRect(origin: .zero, size: rect.size))
+        }
         context.restoreGState()
     }
 }

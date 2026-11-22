@@ -4,6 +4,21 @@ import Testing
 @testable import SlidesCore
 
 struct SlideLayoutTests {
+    @Test func cropPreviewFitsWholePhotoAndShrinksTheBox() {
+        var slide = Slide()
+        slide.place([Media(file: "p", kind: .image)], at: nil)
+        let crop = Crop(zoom: 2)
+        let preview = SlideLayout(slide: slide, format: .portrait4x3).cropPreview(slot: 0, mediaSize: CGSize(width: 300, height: 400), crop: crop)
+        #expect(preview.photo == CGRect(x: 0, y: 0, width: 768, height: 1024))
+        #expect(preview.box == CGRect(x: 192, y: 256, width: 384, height: 512))
+        #expect(preview.factor == 0.5)
+    }
+
+    @Test func olderStyleHasNoCropPreview() throws {
+        let style = try JSONDecoder().decode(SlideStyle.self, from: Data(#"{"fit":"fill"}"#.utf8))
+        #expect(style.showCrop == false)
+    }
+
     @Test func stackedSlotsShareHeightMinusGaps() {
         var slide = Slide()
         slide.choose(.three)

@@ -205,11 +205,13 @@ public struct SlideStyle: Codable, Equatable, Sendable {
     /// Blur radius of the background image, in 1x pixels.
     public var blur = 0.0
     public var filmEdge: FilmEdge?
+    /// Each slot shows its whole photo, dimmed, with the crop as a bright box and a thirds grid.
+    public var showCrop = false
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case fit, border, gap, color, backgroundImage, blur, filmEdge
+        case fit, border, gap, color, backgroundImage, blur, filmEdge, showCrop
     }
 
     /// Missing or unknown values fall back to the defaults, so an older project still opens.
@@ -222,6 +224,7 @@ public struct SlideStyle: Codable, Equatable, Sendable {
         backgroundImage = try? c.decodeIfPresent(String.self, forKey: .backgroundImage)
         blur = (try? c.decodeIfPresent(Double.self, forKey: .blur)) ?? 0
         filmEdge = try? c.decodeIfPresent(FilmEdge.self, forKey: .filmEdge)
+        showCrop = (try? c.decodeIfPresent(Bool.self, forKey: .showCrop)) ?? false
     }
 }
 
