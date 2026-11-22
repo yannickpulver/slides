@@ -15,6 +15,7 @@ struct SlotView: View {
     @State private var gestureStart: Crop?
     @State private var rotating = false
     @State private var playing = false
+    @Environment(\.displayScale) private var displayScale
 
     private var media: Media? { slide.slots[index] }
     private var slotRect: CGRect { layout.slots[index].scaled(scale) }
@@ -43,10 +44,17 @@ struct SlotView: View {
 
     // MARK: - Filled
 
+    /// Long side of the photo on screen in pixels, from the preview's aspect.
+    private func shownPixels(_ media: Media, url: URL) -> Double {
+        guard media.kind == .image, let preview = MediaCache.shared.image(for: url) else { return 0 }
+        let rect = layout.mediaRect(slot: index, mediaSize: CGSize(width: preview.width, height: preview.height), crop: media.crop)
+        return max(rect.width, rect.height) * scale * displayScale
+    }
+
     @ViewBuilder
     private func filled(_ media: Media) -> some View {
         let url = mediaURL(media.file)
-        let image = MediaCache.shared.image(for: url)
+        let image = MediaCache.shared.image(for: url, pixels: shownPixels(media, url: url))
         let size = image.map { CGSize(width: $0.width, height: $0.height) }
         // Visible area in slot-local points.
         let visibleRect = visible.scaled(scale).offsetBy(dx: -slotRect.minX, dy: -slotRect.minY)
