@@ -154,6 +154,19 @@ struct ExportTests {
         #expect(png.starts(with: [0x89, 0x50, 0x4E, 0x47]))
     }
 
+    @Test func thumbnailsGiveSmallFramesPerPanoramaPart() async {
+        let folder = Fixtures.tempFolder()
+        let photo = Fixtures.writePNG(Fixtures.image(width: 100, height: 100, color: .black), named: "p.png", in: folder)
+        var slide = Slide()
+        slide.choose(.single, span: 2)
+        slide.place([Media(file: "p.png", kind: .image)], at: nil)
+
+        let frames = await SlideRenderer.thumbnails(of: slide, format: .portrait4x3, height: 256) { _ in photo }
+        #expect(frames.count == 2)
+        #expect(frames[1].width == 192 && frames[1].height == 256)
+        #expect(frames[1].pixel(x: 96, y: 128) == (0, 0, 0))
+    }
+
     @Test func exportWritesDatedPNGs() async throws {
         let folder = Fixtures.tempFolder()
         let photo = Fixtures.writePNG(Fixtures.image(width: 100, height: 100, color: .black), named: "p.png", in: folder)

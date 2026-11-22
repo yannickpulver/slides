@@ -96,3 +96,11 @@ No migration of old projects.
 - [x] Verified in a second app instance: click select, drag, corner resize, ⌥⌘], frame swatch, ⌫ + undo; MCP add/update/arrange/remove, span and format shrink, render
 - [ ] MP4 export of a video slide with a free photo not checked by hand (same renderer as PNG)
 - [x] README feature line
+
+## Filmstrip start screen
+- [x] Toolbar toggle Grid / Filmstrip, remembered across launches
+- [x] One row per project (in the sort order, newest on top by default): name, then all slides; panorama frames edge to edge
+- [x] Small renders per slide (`SlideRenderer.thumbnails`, also draws the cover), cached until the project saves again
+- [x] Click a slide opens the project on it; context menu like the grid
+- [x] Test: thumbnails per panorama part
+- [ ] Built and clicked through on a Mac (only CI builds here)
