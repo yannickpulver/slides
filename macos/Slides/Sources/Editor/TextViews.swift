@@ -352,7 +352,7 @@ struct InlineTextEditor: NSViewRepresentable {
             paragraph.maximumLineHeight = metrics.lineHeight * scale
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
-                .foregroundColor: NSColor(Color(box.color)),
+                .foregroundColor: NSColor(Color(box.color)).withAlphaComponent(box.opacity / 100),
                 .kern: box.letterSpacing / 100 * box.size * scale,
                 .paragraphStyle: paragraph,
                 // TextKit puts the extra line height above the glyphs; center them like the renderer.

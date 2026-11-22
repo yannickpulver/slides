@@ -82,6 +82,14 @@ private struct TextCard: View {
                     .labelsHidden()
                 }
             }
+            Row(label: "Opacity") {
+                Slider(value: Binding(get: { box.opacity }, set: { value in style("opacity") { $0.opacity = value.rounded() } }), in: 0...100)
+                    .controlSize(.small)
+                NumberField(value: box.opacity, placeholder: "100", suffix: "%", help: "Opacity in %") { value in
+                    style { $0.opacity = min(max(value ?? 100, 0), 100) }
+                }
+                .frame(width: 64)
+            }
             Row(label: "Align") {
                 Picker("Align", selection: Binding(get: { box.alignment }, set: { alignment in style { $0.alignment = alignment } })) {
                     ForEach(TextAlignment.allCases, id: \.self) { alignment in

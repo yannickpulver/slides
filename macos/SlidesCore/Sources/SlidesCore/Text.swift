@@ -27,6 +27,8 @@ public struct TextBox: Codable, Equatable, Sendable, Identifiable {
     public var lineHeight: Double?
     /// Letter spacing in percent of the font size, like Figma.
     public var letterSpacing = 0.0
+    /// Opacity in percent, 0...100, like Figma.
+    public var opacity = 100.0
 
     public init(text: String, x: Double, y: Double, width: Double? = nil) {
         self.text = text
@@ -36,7 +38,7 @@ public struct TextBox: Codable, Equatable, Sendable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, text, x, y, width, font, size, color, alignment, lineHeight, letterSpacing
+        case id, text, x, y, width, font, size, color, alignment, lineHeight, letterSpacing, opacity
     }
 
     /// Missing values fall back to the defaults, so later additions keep older projects readable.
@@ -53,6 +55,7 @@ public struct TextBox: Codable, Equatable, Sendable, Identifiable {
         alignment = (try? c.decodeIfPresent(TextAlignment.self, forKey: .alignment)) ?? .left
         lineHeight = try? c.decodeIfPresent(Double.self, forKey: .lineHeight)
         letterSpacing = (try? c.decodeIfPresent(Double.self, forKey: .letterSpacing)) ?? 0
+        opacity = (try? c.decodeIfPresent(Double.self, forKey: .opacity)) ?? 100
     }
 }
 
@@ -79,6 +82,12 @@ public enum TextRenderer {
         let layout = Layout(box)
         let width = box.width ?? ceil(layout.widest)
         context.saveGState()
+        // Opacity applies to the box as a whole, so glyphs that touch (script fonts) don't darken where they overlap.
+        let translucent = box.opacity < 100
+        if translucent {
+            context.setAlpha(max(box.opacity, 0) / 100)
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+        }
         context.textMatrix = .identity
         for (index, line) in layout.lines.enumerated() {
             let free = width - line.width
@@ -95,6 +104,7 @@ public enum TextRenderer {
             CTLineDraw(line.line, context)
             context.restoreGState()
         }
+        if translucent { context.endTransparencyLayer() }
         context.restoreGState()
     }
 
