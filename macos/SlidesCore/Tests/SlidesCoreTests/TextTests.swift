@@ -54,6 +54,25 @@ struct TextTests {
         #expect(image.pixel(x: Int(rect.midX), y: Int(rect.minY) - 20) == (255, 255, 255))
     }
 
+    @Test func opacityBlendsTheTextWithTheSlide() throws {
+        var slide = Slide()
+        var box = TextBox(text: "████", x: 100, y: 400)
+        box.size = 120
+        box.font = "Menlo-Regular"
+        box.opacity = 50
+        slide.addText(box)
+        let rect = TextRenderer.rect(of: box)
+        let renderer = SlideRenderer(layout: SlideLayout(slide: slide, format: .portrait4x3), scale: 1, images: [:], background: nil)
+        // At the seam between two glyphs, where they overlap: still one layer of 50 %.
+        let pixel = renderer.render(part: 0)!.pixel(x: Int(rect.midX), y: Int(rect.midY))
+        #expect((120...135).contains(pixel.0) && pixel.0 == pixel.1 && pixel.1 == pixel.2, "\(pixel)")
+
+        // Boxes from before opacity open fully opaque.
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(box)) as! [String: Any]
+        json.removeValue(forKey: "opacity")
+        #expect(try JSONDecoder().decode(TextBox.self, from: JSONSerialization.data(withJSONObject: json)).opacity == 100)
+    }
+
     @Test func panoramaTextCrossesTheCut() {
         var slide = Slide()
         slide.choose(.single, span: 2)

@@ -19,8 +19,9 @@ struct EditorView: View {
             InspectorView(editor: editor)
                 .inspectorColumnWidth(min: 280, ideal: 300, max: 400)
         }
+        // The window keeps its title (Window menu, Mission Control); the toolbar shows ProjectTitle instead.
         .navigationTitle(editor.project.name)
-        .navigationSubtitle("\(editor.project.frameCount) \(editor.project.frameCount == 1 ? "slide" : "slides")")
+        .toolbar(removing: .title)
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button(action: onBack) {
@@ -28,6 +29,11 @@ struct EditorView: View {
                 }
                 .help("Back to projects")
             }
+            ToolbarItem(placement: .navigation) {
+                ProjectTitle(editor: editor)
+            }
+            .sharedBackgroundVisibility(.hidden)
+            ToolbarSpacer(.flexible)
             ToolbarItemGroup(placement: .primaryAction) {
                 Button(action: toggleTextTool) {
                     Label { Text("Text") } icon: { TablerIcon("typography", size: 18) }
@@ -190,3 +196,43 @@ struct EditorView: View {
     }
 }
 
+/// Project name and slide count in the toolbar. Click the name to rename it in place:
+/// Return or clicking away saves, Esc cancels.
+private struct ProjectTitle: View {
+    let editor: EditorModel
+
+    @State private var draft: String?
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if let draft {
+                TextField("Name", text: Binding(get: { draft }, set: { self.draft = $0 }))
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(minWidth: 200)
+                    .focused($focused)
+                    .onAppear { focused = true }
+                    .onSubmit(commit)
+                    .onExitCommand { self.draft = nil }
+                    .onChange(of: focused) { _, focused in if !focused { commit() } }
+            } else {
+                Text(editor.project.name)
+                    .font(.system(size: 13, weight: .bold))
+                    .contentShape(Rectangle())
+                    .onTapGesture { draft = editor.project.name }
+                    .help("Click to rename")
+            }
+            Text("\(editor.project.frameCount) \(editor.project.frameCount == 1 ? "slide" : "slides")")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.leading, 4)
+    }
+
+    private func commit() {
+        guard let name = draft?.trimmingCharacters(in: .whitespaces) else { return }
+        draft = nil
+        if !name.isEmpty, name != editor.project.name { editor.rename(name) }
+    }
+}

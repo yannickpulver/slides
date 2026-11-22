@@ -121,6 +121,7 @@ struct SlidesTools {
         "align": enumeration(["left", "center", "right"], "Alignment of the lines inside the box."),
         "line_height": number("Line height in % of the font size, e.g. 120. 0 = the font's own."),
         "letter_spacing": number("Letter spacing in % of the font size, e.g. -2."),
+        "opacity": number("Opacity in %, 0...100 (default 100)."),
     ]
 
     private static func tool(
@@ -535,6 +536,7 @@ struct SlidesTools {
             if let alignment { box.alignment = alignment }
             if let lineHeight = args.double("line_height") { box.lineHeight = lineHeight > 0 ? max(lineHeight, 10) : nil }
             if let spacing = args.double("letter_spacing") { box.letterSpacing = spacing }
+            if let opacity = args.double("opacity") { box.opacity = min(max(opacity, 0), 100) }
         }
     }
 
@@ -620,6 +622,7 @@ struct SlidesTools {
                             "align": box.alignment.rawValue,
                             "lineHeight": box.lineHeight ?? NSNull(),
                             "letterSpacing": box.letterSpacing,
+                            "opacity": box.opacity,
                         ] as [String: Any]
                     },
                 ] as [String: Any]

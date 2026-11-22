@@ -51,17 +51,12 @@ private struct TextCard: View {
                 .buttonStyle(.borderless)
                 .help("Delete text (⌫)")
         } content: {
-            Picker("Font", selection: Binding(get: { family }, set: { newFamily in
+            FontFamilyPicker(selection: family) { newFamily in
                 let current = members.first { $0.postScript == box.font }?.style
                 let options = Fonts.members(of: newFamily)
                 let pick = options.first { $0.style == current } ?? options.first { $0.style == "Regular" } ?? options.first
                 if let pick { style { $0.font = pick.postScript } }
-            })) {
-                ForEach(Fonts.families, id: \.self) { Text($0).tag($0) }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .buttonSizing(.flexible)
             .frame(maxWidth: .infinity)
             HStack(spacing: 8) {
                 Picker("Style", selection: Binding(get: { box.font }, set: { name in style { $0.font = name } })) {
@@ -87,25 +82,26 @@ private struct TextCard: View {
                     .labelsHidden()
                 }
             }
-            Row(label: "Align") {
-                Picker("Align", selection: Binding(get: { box.alignment }, set: { alignment in style { $0.alignment = alignment } })) {
-                    ForEach(TextAlignment.allCases, id: \.self) { alignment in
-                        TablerIcon("align-\(alignment.rawValue)", size: 14).tag(alignment)
-                    }
+            Row(label: "Opacity") {
+                Slider(value: Binding(get: { box.opacity }, set: { value in style("opacity") { $0.opacity = value.rounded() } }), in: 0...100)
+                    .controlSize(.small)
+                NumberField(value: box.opacity, placeholder: "100", suffix: "%", help: "Opacity in %") { value in
+                    style { $0.opacity = min(max(value ?? 100, 0), 100) }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                .frame(width: 64)
+            }
+            Row(label: "Align") {
+                Segmented(
+                    segments: SlidesCore.TextAlignment.allCases.map { .init(value: $0, icon: "align-\($0.rawValue)") },
+                    selection: box.alignment,
+                    minSegmentWidth: 30
+                ) { alignment in style { $0.alignment = alignment } }
             }
             Row(label: "Width") {
-                Picker("Width", selection: Binding(get: { box.width != nil }, set: { fixed in
+                Segmented(segments: [.init(value: false, title: "Auto"), .init(value: true, title: "Fixed")], selection: box.width != nil) { fixed in
                     let width = TextRenderer.size(of: box).width
                     editor.updateText(box.id) { $0.width = fixed ? width : nil }
-                })) {
-                    Text("Auto").tag(false)
-                    Text("Fixed").tag(true)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 .help("Auto grows with the text; Fixed wraps it. The side handles set the width too.")
             }
             HStack(spacing: 10) {
@@ -165,6 +161,132 @@ private struct NumberField: View {
     }
 }
 
+/// Segmented control backed by AppKit. SwiftUI's segmented picker re-measures its segments
+/// on updates and shifts by a few points, which shows while a slider redraws the inspector.
+struct Segmented<Value: Equatable>: NSViewRepresentable {
+    struct Segment {
+        let value: Value
+        var title: String?
+        /// Tabler icon name.
+        var icon: String?
+    }
+
+    let segments: [Segment]
+    let selection: Value
+    /// Stretches over the offered width; otherwise as wide as its widest label needs.
+    var fill = false
+    /// Icon segments are only as wide as the icon otherwise.
+    var minSegmentWidth: CGFloat = 0
+    let onPick: (Value) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = NSSegmentedControl()
+        control.segmentCount = segments.count
+        control.trackingMode = .selectOne
+        control.segmentDistribution = .fillEqually
+        control.target = context.coordinator
+        control.action = #selector(Coordinator.picked(_:))
+        for (index, segment) in segments.enumerated() {
+            if let title = segment.title { control.setLabel(title, forSegment: index) }
+            if let icon = segment.icon, let source = NSImage(named: "ti-\(icon)")?.copy() as? NSImage {
+                source.size = NSSize(width: 14, height: 14)
+                source.isTemplate = true
+                control.setImage(source, forSegment: index)
+            }
+        }
+        return control
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView control: NSSegmentedControl, context: Context) -> CGSize? {
+        var fitting = control.fittingSize
+        fitting.width = max(fitting.width, minSegmentWidth * CGFloat(segments.count))
+        guard fill, let width = proposal.width, width.isFinite else { return fitting }
+        return CGSize(width: max(width, fitting.width), height: fitting.height)
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.pick = { index in onPick(segments[index].value) }
+        control.selectedSegment = segments.firstIndex { $0.value == selection } ?? -1
+    }
+
+    final class Coordinator: NSObject {
+        var pick: (Int) -> Void = { _ in }
+
+        @objc func picked(_ sender: NSSegmentedControl) {
+            if sender.selectedSegment >= 0 { pick(sender.selectedSegment) }
+        }
+    }
+}
+
+/// Font family menu: each family shown in its own typeface, recently picked ones on top.
+private struct FontFamilyPicker: NSViewRepresentable {
+    let selection: String
+    let onPick: (String) -> Void
+
+    @AppStorage("recentFontFamilies") private var recentRaw = ""
+
+    private var recent: [String] {
+        recentRaw.split(separator: "\n").map(String.init).filter(Fonts.families.contains)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.picked(_:))
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        // The button itself shows the name in the system font; only the menu previews the typefaces.
+        if let cell = button.cell as? NSPopUpButtonCell {
+            cell.usesItemFromMenu = false
+            cell.menuItem = NSMenuItem()
+        }
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        let coordinator = context.coordinator
+        let recent = recent
+        coordinator.pick = { family in
+            recentRaw = ([family] + recent.filter { $0 != family }).prefix(5).joined(separator: "\n")
+            onPick(family)
+        }
+        if coordinator.builtFor != recent {
+            coordinator.builtFor = recent
+            let menu = NSMenu()
+            for family in recent { menu.addItem(Self.item(family)) }
+            if !recent.isEmpty { menu.addItem(.separator()) }
+            for family in Fonts.families { menu.addItem(Self.item(family)) }
+            button.menu = menu
+        }
+        let index = button.itemArray.firstIndex { $0.representedObject as? String == selection }
+        button.selectItem(at: index ?? -1)
+        (button.cell as? NSPopUpButtonCell)?.menuItem?.title = selection
+    }
+
+    private static func item(_ family: String) -> NSMenuItem {
+        let item = NSMenuItem(title: family, action: nil, keyEquivalent: "")
+        item.representedObject = family
+        if let font = NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: NSFont.systemFontSize),
+           family.unicodeScalars.allSatisfy({ $0 == " " || font.coveredCharacterSet.contains($0) }) {
+            item.attributedTitle = NSAttributedString(string: family, attributes: [.font: font])
+        }
+        return item
+    }
+
+    final class Coordinator: NSObject {
+        var builtFor: [String]?
+        var pick: (String) -> Void = { _ in }
+
+        @objc func picked(_ sender: NSPopUpButton) {
+            if let family = sender.selectedItem?.representedObject as? String { pick(family) }
+        }
+    }
+}
+
 /// Installed fonts by family, with their styles as PostScript names.
 enum Fonts {
     struct Member: Hashable {
@@ -195,11 +317,7 @@ private struct FormatCard: View {
     var body: some View {
         Card(title: "Format", icon: "aspect-ratio") {
             Row(label: "Ratio") {
-                Picker("Format", selection: Binding(get: { editor.project.format }, set: { editor.setFormat($0) })) {
-                    ForEach(Format.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                Segmented(segments: Format.allCases.map { .init(value: $0, title: $0.label) }, selection: editor.project.format) { editor.setFormat($0) }
             }
             Text("Applies to all slides")
                 .font(.callout)
@@ -342,12 +460,7 @@ private struct PhotoCard: View {
                 .help("Add photos or videos (⌘O)")
         } content: {
             Row(label: "Fit") {
-                Picker("Fit", selection: Binding(get: { slide.style.fit }, set: { editor.setFit($0) })) {
-                    Text("Fill").tag(Fit.fill)
-                    Text("Full").tag(Fit.full)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                Segmented(segments: [.init(value: Fit.fill, title: "Fill"), .init(value: Fit.full, title: "Full")], selection: slide.style.fit) { editor.setFit($0) }
             }
             ForEach(slide.slots.indices, id: \.self) { slot in
                 if let media = slide.slots[slot] {
@@ -361,14 +474,11 @@ private struct PhotoCard: View {
             PixelSlider(label: "Border", value: slide.style.border, range: 0...SlideStyle.maxBorder, onChange: { editor.setBorder($0) })
             VStack(alignment: .leading, spacing: 6) {
                 Text("Film edge").foregroundStyle(.secondary)
-                Picker("Film edge", selection: Binding(get: { slide.style.filmEdge }, set: { editor.setFilmEdge($0) })) {
-                    Text("None").tag(FilmEdge?.none)
-                    ForEach(FilmEdge.allCases, id: \.self) { Text($0.name).tag(FilmEdge?.some($0)) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .buttonSizing(.flexible)
-                .frame(maxWidth: .infinity)
+                Segmented(
+                    segments: [.init(value: nil, title: "None")] + FilmEdge.allCases.map { .init(value: Optional($0), title: $0.name) },
+                    selection: slide.style.filmEdge,
+                    fill: true
+                ) { editor.setFilmEdge($0) }
             }
         }
     }
