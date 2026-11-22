@@ -363,22 +363,10 @@ final class EditorModel {
         try? library.saveCover(cover, at: url)
     }
 
-    /// First frame at 480 px high, from small decodes of the media.
+    /// First frame at 480 px high.
     @concurrent
     private static func renderCover(_ project: Project, mediaURL: @Sendable (String) -> URL) async -> CGImage? {
-        let slide = project.slides[0]
-        var images: [String: CGImage] = [:]
-        for file in slide.slots.compactMap(\.self).map(\.file) + slide.freePhotos.map(\.file) {
-            images[file] = await MediaLoader.preview(at: mediaURL(file), maxPixelSize: 1200)
-        }
-        let background = slide.style.backgroundImage.flatMap { MediaLoader.image(at: mediaURL($0), maxPixelSize: 1200) }
-        let renderer = SlideRenderer(
-            layout: SlideLayout(slide: slide, format: project.format),
-            scale: 480 / project.format.height,
-            images: images,
-            background: background
-        )
-        return renderer.render(part: 0)
+        await SlideRenderer.thumbnails(of: project.slides[0], format: project.format, height: 480, mediaURL: mediaURL).first
     }
 
     // MARK: - Export

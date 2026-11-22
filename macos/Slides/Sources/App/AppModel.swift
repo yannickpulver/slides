@@ -57,9 +57,12 @@ final class AppModel {
         refresh()
     }
 
-    func open(_ summary: ProjectSummary) {
+    /// Opens a project, on `slide` when given.
+    func open(_ summary: ProjectSummary, slide: Slide.ID? = nil) {
         guard let project = try? library.load(summary.url) else { return }
-        editor = EditorModel(project: project, url: summary.url, library: library)
+        let editor = EditorModel(project: project, url: summary.url, library: library)
+        if let slide, project.slides.contains(where: { $0.id == slide }) { editor.select(slide) }
+        self.editor = editor
     }
 
     /// Saves and goes back to the project list.

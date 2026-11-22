@@ -11,6 +11,8 @@ public struct ProjectSummary: Identifiable, Equatable, Sendable {
     public let modified: Date
     public let frameCount: Int
     public let hasPanorama: Bool
+    public let format: Format
+    public let slides: [Slide]
 
     public var coverURL: URL { url.appending(path: ProjectLibrary.coverFile) }
 }
@@ -45,7 +47,9 @@ public struct ProjectLibrary: Sendable {
                 name: project.name,
                 modified: modified,
                 frameCount: project.frameCount,
-                hasPanorama: project.slides.contains(where: \.isPanorama)
+                hasPanorama: project.slides.contains(where: \.isPanorama),
+                format: project.format,
+                slides: project.slides
             )
         }
     }

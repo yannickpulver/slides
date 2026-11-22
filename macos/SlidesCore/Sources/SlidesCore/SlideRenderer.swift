@@ -172,3 +172,24 @@ final class FilmEdgeCache: @unchecked Sendable {
         return image
     }
 }
+
+extension SlideRenderer {
+    /// The frames of `slide`, `height` pixels high, from small decodes of the media.
+    /// For the project cover and the start screen. Videos show their poster.
+    @concurrent
+    public static func thumbnails(of slide: Slide, format: Format, height: Double, mediaURL: @Sendable (String) -> URL) async -> [CGImage] {
+        let maxPixelSize = Int(height * 2.5)
+        var images: [String: CGImage] = [:]
+        for file in Set(slide.slots.compactMap(\.self).map(\.file) + slide.freePhotos.map(\.file)) {
+            images[file] = await MediaLoader.preview(at: mediaURL(file), maxPixelSize: maxPixelSize)
+        }
+        let background = slide.style.backgroundImage.flatMap { MediaLoader.image(at: mediaURL($0), maxPixelSize: maxPixelSize) }
+        let renderer = SlideRenderer(
+            layout: SlideLayout(slide: slide, format: format),
+            scale: height / format.height,
+            images: images,
+            background: background
+        )
+        return (0..<slide.span).compactMap { renderer.render(part: $0) }
+    }
+}
