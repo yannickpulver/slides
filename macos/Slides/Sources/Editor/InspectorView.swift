@@ -91,20 +91,17 @@ private struct TextCard: View {
                 .frame(width: 64)
             }
             Row(label: "Align") {
-                AlignmentPicker(selection: box.alignment) { alignment in style { $0.alignment = alignment } }
+                Segmented(
+                    segments: SlidesCore.TextAlignment.allCases.map { .init(value: $0, icon: "align-\($0.rawValue)") },
+                    selection: box.alignment,
+                    minSegmentWidth: 30
+                ) { alignment in style { $0.alignment = alignment } }
             }
             Row(label: "Width") {
-                Picker("Width", selection: Binding(get: { box.width != nil }, set: { fixed in
+                Segmented(segments: [.init(value: false, title: "Auto"), .init(value: true, title: "Fixed")], selection: box.width != nil) { fixed in
                     let width = TextRenderer.size(of: box).width
                     editor.updateText(box.id) { $0.width = fixed ? width : nil }
-                })) {
-                    Text("Auto").tag(false)
-                    Text("Fixed").tag(true)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                // A fixed width: on its first layout the picker sits a few points off and moves on the next edit.
-                .frame(width: 109)
                 .help("Auto grows with the text; Fixed wraps it. The side handles set the width too.")
             }
             HStack(spacing: 10) {
@@ -164,40 +161,61 @@ private struct NumberField: View {
     }
 }
 
-/// Left, center, right as an AppKit segmented control. SwiftUI's segmented picker sizes
-/// image segments differently on its first layout and shifts on the next edit.
-private struct AlignmentPicker: NSViewRepresentable {
-    let selection: SlidesCore.TextAlignment
-    let onPick: (SlidesCore.TextAlignment) -> Void
+/// Segmented control backed by AppKit. SwiftUI's segmented picker re-measures its segments
+/// on updates and shifts by a few points, which shows while a slider redraws the inspector.
+struct Segmented<Value: Equatable>: NSViewRepresentable {
+    struct Segment {
+        let value: Value
+        var title: String?
+        /// Tabler icon name.
+        var icon: String?
+    }
+
+    let segments: [Segment]
+    let selection: Value
+    /// Stretches over the offered width; otherwise as wide as its widest label needs.
+    var fill = false
+    /// Icon segments are only as wide as the icon otherwise.
+    var minSegmentWidth: CGFloat = 0
+    let onPick: (Value) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> NSSegmentedControl {
-        let images = SlidesCore.TextAlignment.allCases.map { alignment in
-            let image = NSImage(named: "ti-align-\(alignment.rawValue)") ?? NSImage()
-            image.size = NSSize(width: 14, height: 14)
-            image.isTemplate = true
-            return image
+        let control = NSSegmentedControl()
+        control.segmentCount = segments.count
+        control.trackingMode = .selectOne
+        control.segmentDistribution = .fillEqually
+        control.target = context.coordinator
+        control.action = #selector(Coordinator.picked(_:))
+        for (index, segment) in segments.enumerated() {
+            if let title = segment.title { control.setLabel(title, forSegment: index) }
+            if let icon = segment.icon, let source = NSImage(named: "ti-\(icon)")?.copy() as? NSImage {
+                source.size = NSSize(width: 14, height: 14)
+                source.isTemplate = true
+                control.setImage(source, forSegment: index)
+            }
         }
-        let control = NSSegmentedControl(images: images, trackingMode: .selectOne, target: context.coordinator, action: #selector(Coordinator.picked(_:)))
-        control.setContentHuggingPriority(.required, for: .horizontal)
         return control
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView control: NSSegmentedControl, context: Context) -> CGSize? {
-        control.fittingSize
+        var fitting = control.fittingSize
+        fitting.width = max(fitting.width, minSegmentWidth * CGFloat(segments.count))
+        guard fill, let width = proposal.width, width.isFinite else { return fitting }
+        return CGSize(width: max(width, fitting.width), height: fitting.height)
     }
 
     func updateNSView(_ control: NSSegmentedControl, context: Context) {
-        context.coordinator.pick = onPick
-        control.selectedSegment = SlidesCore.TextAlignment.allCases.firstIndex(of: selection) ?? 0
+        context.coordinator.pick = { index in onPick(segments[index].value) }
+        control.selectedSegment = segments.firstIndex { $0.value == selection } ?? -1
     }
 
     final class Coordinator: NSObject {
-        var pick: (SlidesCore.TextAlignment) -> Void = { _ in }
+        var pick: (Int) -> Void = { _ in }
 
         @objc func picked(_ sender: NSSegmentedControl) {
-            if SlidesCore.TextAlignment.allCases.indices.contains(sender.selectedSegment) { pick(SlidesCore.TextAlignment.allCases[sender.selectedSegment]) }
+            if sender.selectedSegment >= 0 { pick(sender.selectedSegment) }
         }
     }
 }
@@ -299,11 +317,7 @@ private struct FormatCard: View {
     var body: some View {
         Card(title: "Format", icon: "aspect-ratio") {
             Row(label: "Ratio") {
-                Picker("Format", selection: Binding(get: { editor.project.format }, set: { editor.setFormat($0) })) {
-                    ForEach(Format.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                Segmented(segments: Format.allCases.map { .init(value: $0, title: $0.label) }, selection: editor.project.format) { editor.setFormat($0) }
             }
             Text("Applies to all slides")
                 .font(.callout)
@@ -446,12 +460,7 @@ private struct PhotoCard: View {
                 .help("Add photos or videos (⌘O)")
         } content: {
             Row(label: "Fit") {
-                Picker("Fit", selection: Binding(get: { slide.style.fit }, set: { editor.setFit($0) })) {
-                    Text("Fill").tag(Fit.fill)
-                    Text("Full").tag(Fit.full)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                Segmented(segments: [.init(value: Fit.fill, title: "Fill"), .init(value: Fit.full, title: "Full")], selection: slide.style.fit) { editor.setFit($0) }
             }
             ForEach(slide.slots.indices, id: \.self) { slot in
                 if let media = slide.slots[slot] {
@@ -465,14 +474,11 @@ private struct PhotoCard: View {
             PixelSlider(label: "Border", value: slide.style.border, range: 0...SlideStyle.maxBorder, onChange: { editor.setBorder($0) })
             VStack(alignment: .leading, spacing: 6) {
                 Text("Film edge").foregroundStyle(.secondary)
-                Picker("Film edge", selection: Binding(get: { slide.style.filmEdge }, set: { editor.setFilmEdge($0) })) {
-                    Text("None").tag(FilmEdge?.none)
-                    ForEach(FilmEdge.allCases, id: \.self) { Text($0.name).tag(FilmEdge?.some($0)) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .buttonSizing(.flexible)
-                .frame(maxWidth: .infinity)
+                Segmented(
+                    segments: [.init(value: nil, title: "None")] + FilmEdge.allCases.map { .init(value: Optional($0), title: $0.name) },
+                    selection: slide.style.filmEdge,
+                    fill: true
+                ) { editor.setFilmEdge($0) }
             }
         }
     }
