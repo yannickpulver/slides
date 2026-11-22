@@ -51,17 +51,12 @@ private struct TextCard: View {
                 .buttonStyle(.borderless)
                 .help("Delete text (⌫)")
         } content: {
-            Picker("Font", selection: Binding(get: { family }, set: { newFamily in
+            FontFamilyPicker(selection: family) { newFamily in
                 let current = members.first { $0.postScript == box.font }?.style
                 let options = Fonts.members(of: newFamily)
                 let pick = options.first { $0.style == current } ?? options.first { $0.style == "Regular" } ?? options.first
                 if let pick { style { $0.font = pick.postScript } }
-            })) {
-                ForEach(Fonts.families, id: \.self) { Text($0).tag($0) }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .buttonSizing(.flexible)
             .frame(maxWidth: .infinity)
             HStack(spacing: 8) {
                 Picker("Style", selection: Binding(get: { box.font }, set: { name in style { $0.font = name } })) {
@@ -162,6 +157,73 @@ private struct NumberField: View {
     private func format(_ value: Double?) -> String {
         guard let value else { return "" }
         return value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+    }
+}
+
+/// Font family menu: each family shown in its own typeface, recently picked ones on top.
+private struct FontFamilyPicker: NSViewRepresentable {
+    let selection: String
+    let onPick: (String) -> Void
+
+    @AppStorage("recentFontFamilies") private var recentRaw = ""
+
+    private var recent: [String] {
+        recentRaw.split(separator: "\n").map(String.init).filter(Fonts.families.contains)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.picked(_:))
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        button.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        // The button itself shows the name in the system font; only the menu previews the typefaces.
+        if let cell = button.cell as? NSPopUpButtonCell {
+            cell.usesItemFromMenu = false
+            cell.menuItem = NSMenuItem()
+        }
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        let coordinator = context.coordinator
+        let recent = recent
+        coordinator.pick = { family in
+            recentRaw = ([family] + recent.filter { $0 != family }).prefix(5).joined(separator: "\n")
+            onPick(family)
+        }
+        if coordinator.builtFor != recent {
+            coordinator.builtFor = recent
+            let menu = NSMenu()
+            for family in recent { menu.addItem(Self.item(family)) }
+            if !recent.isEmpty { menu.addItem(.separator()) }
+            for family in Fonts.families { menu.addItem(Self.item(family)) }
+            button.menu = menu
+        }
+        let index = button.itemArray.firstIndex { $0.representedObject as? String == selection }
+        button.selectItem(at: index ?? -1)
+        (button.cell as? NSPopUpButtonCell)?.menuItem?.title = selection
+    }
+
+    private static func item(_ family: String) -> NSMenuItem {
+        let item = NSMenuItem(title: family, action: nil, keyEquivalent: "")
+        item.representedObject = family
+        if let font = NSFontManager.shared.font(withFamily: family, traits: [], weight: 5, size: NSFont.systemFontSize),
+           family.unicodeScalars.allSatisfy({ $0 == " " || font.coveredCharacterSet.contains($0) }) {
+            item.attributedTitle = NSAttributedString(string: family, attributes: [.font: font])
+        }
+        return item
+    }
+
+    final class Coordinator: NSObject {
+        var builtFor: [String]?
+        var pick: (String) -> Void = { _ in }
+
+        @objc func picked(_ sender: NSPopUpButton) {
+            if let family = sender.selectedItem?.representedObject as? String { pick(family) }
+        }
     }
 }
 
