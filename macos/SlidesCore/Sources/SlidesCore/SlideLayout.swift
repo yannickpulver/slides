@@ -162,7 +162,7 @@ public struct CropPreview: Equatable, Sendable {
     /// Width of the box outline and grid lines, in 1x pixels.
     public static let lineWidth = 2.0
     /// Opacity of the black over the photo outside the box.
-    public static let dim = 0.55
+    public static let dim = 0.4
 
     /// The whole photo, before turning by the crop's angle around its center.
     public let photo: CGRect

@@ -17,7 +17,7 @@ struct RenderTests {
         )
         let image = renderer.render(part: 0)!
         // Outside the box (192...576 × 256...768): dimmed. Inside, off the lines: as is.
-        #expect((110...120).contains(image.pixel(x: 50, y: 50).r))
+        #expect((148...158).contains(image.pixel(x: 50, y: 50).r))
         #expect(image.pixel(x: 250, y: 300) == (255, 0, 0))
         // The outline is white.
         #expect(image.pixel(x: 300, y: 257) == (255, 255, 255))
