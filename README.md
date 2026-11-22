@@ -19,7 +19,7 @@ Slides updates itself through Sparkle. It needs macOS 26 or later.
 - Pan and zoom each photo; it always covers its slot
 - Background color or blurred background image, gap and border
 - Thin film-gate edge in white or black
-- Free text like in Figma: press T and click (or drag for a wrapping width), move with snapping, double-click to edit; any installed font
+- Free text like in Figma: press T and click (or drag for a wrapping width), move with snapping, double-click to edit, ⌥-drag or ⌘C / ⌘V to copy; any installed font, recent ones on top
 - Free photos anywhere on a slide, shown whole: move, resize from the corners, rotate, add a photo frame; stack them with the text (⌥⌘[ / ⌥⌘])
 - Start screen as a grid of covers or as a filmstrip: one row per project with all its slides; click a slide to open the project there
 - Export as PNG (1x, 2x, 3x) or MP4 with the audio of the first video

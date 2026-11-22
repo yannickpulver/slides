@@ -38,6 +38,22 @@ struct SlidesApp: App {
                     .keyboardShortcut("w", modifiers: [.command, .shift])
                     .disabled(app.editor == nil)
             }
+            // In a text field these edit the text; otherwise they cut, copy and paste the selected text box.
+            CommandGroup(replacing: .pasteboard) {
+                Button("Cut") {
+                    pasteboard(#selector(NSText.cut(_:))) { editor in
+                        editor.copySelectedText()
+                        editor.selectedTextID.map { editor.removeText($0) }
+                    }
+                }
+                .keyboardShortcut("x")
+                Button("Copy") { pasteboard(#selector(NSText.copy(_:))) { $0.copySelectedText() } }
+                    .keyboardShortcut("c")
+                Button("Paste") { pasteboard(#selector(NSText.paste(_:))) { $0.pasteText() } }
+                    .keyboardShortcut("v")
+                Button("Select All") { NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil) }
+                    .keyboardShortcut("a")
+            }
             CommandGroup(after: .saveItem) {
                 Group {
                     Button("Save") { app.editor?.saveNow() }
@@ -73,6 +89,16 @@ struct SlidesApp: App {
                 }
                 .disabled(app.editor == nil)
             }
+        }
+    }
+
+    /// Sends `action` to the text field being typed in (or anything else outside the editor);
+    /// otherwise the open editor handles it.
+    private func pasteboard(_ action: Selector, editor handle: (EditorModel) -> Void) {
+        if let editor = app.editor, !(NSApp.keyWindow?.firstResponder is NSTextView) {
+            handle(editor)
+        } else {
+            NSApp.sendAction(action, to: nil, from: nil)
         }
     }
 }

@@ -44,6 +44,8 @@ struct FreeItemsOverlay: View {
     @State var dragStart: CGPoint?
     @State var guides: [Guide] = []
     @State private var newBox: CGRect?
+    /// The text box a drag moves: the clicked one, or its copy on ⌥-drag.
+    @State private var dragID: TextBox.ID?
     /// The photo as it was when a drag, resize or turn started.
     @State var photoStart: FreePhoto?
 
@@ -126,14 +128,18 @@ struct FreeItemsOverlay: View {
                             dragStart = CGPoint(x: box.x, y: box.y)
                         }
                         guard let start = dragStart, hypot(value.translation.width, value.translation.height) > 2 else { return }
+                        // ⌥-drag leaves the box in place and drags a copy, like in Figma.
+                        let id = dragID ?? (NSEvent.modifierFlags.contains(.option) ? editor.insertCopy(of: box, key: "move") : box.id)
+                        dragID = id
                         let moved = snapped(TextRenderer.size(of: box), to: CGPoint(
                             x: (start.x + value.translation.width / scale).rounded(),
                             y: (start.y + value.translation.height / scale).rounded()
                         ))
-                        editor.updateText(box.id, "move") { $0.x = moved.x; $0.y = moved.y }
+                        editor.updateText(id, "move") { $0.x = moved.x; $0.y = moved.y }
                     }
                     .onEnded { _ in
                         dragStart = nil
+                        dragID = nil
                         guides = []
                     }
             )

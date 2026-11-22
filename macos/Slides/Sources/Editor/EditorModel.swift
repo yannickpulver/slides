@@ -207,6 +207,39 @@ final class EditorModel {
         placingText = false
     }
 
+    /// Adds a copy of `box` on top of the current slide and selects it. `key` merges it with the
+    /// drag that follows into one undo step.
+    @discardableResult
+    func insertCopy(of box: TextBox, key: String? = nil) -> TextBox.ID {
+        var copy = box
+        copy.id = UUID()
+        editSlide(nil, key.map { "text-\(copy.id)-\($0)" }) { $0.addText(copy) }
+        selectText(copy.id)
+        return copy.id
+    }
+
+    static let textPasteboardType = NSPasteboard.PasteboardType("com.yannickpulver.slides.text")
+
+    /// Copies the selected text box: as a box to paste here, as plain text for other apps.
+    func copySelectedText() {
+        guard let box = selectedText, let data = try? JSONEncoder().encode(box) else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setData(data, forType: Self.textPasteboardType)
+        pasteboard.setString(box.text, forType: .string)
+    }
+
+    /// Pastes a copied text box onto the current slide, 20 px down and right of a box at the same spot.
+    func pasteText() {
+        guard let data = NSPasteboard.general.data(forType: Self.textPasteboardType),
+              var box = try? JSONDecoder().decode(TextBox.self, from: data) else { return }
+        while currentSlide.texts.contains(where: { $0.x == box.x && $0.y == box.y }) {
+            box.x += 20
+            box.y += 20
+        }
+        insertCopy(of: box)
+    }
+
     /// Leaves the text field. An empty box goes away, like in Figma.
     func endTextEditing() {
         guard let id = editingTextID else { return }
