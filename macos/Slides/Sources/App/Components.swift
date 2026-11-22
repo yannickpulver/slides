@@ -17,6 +17,18 @@ struct TablerIcon: View {
             .scaledToFit()
             .frame(width: size, height: size)
     }
+
+    /// The icon as an image already `size` points big, for a segmented picker: it lays out
+    /// at the 24 pt artwork size first and only shrinks on the next update otherwise.
+    static func image(_ name: String, size: CGFloat) -> Image {
+        let source = NSImage(named: "ti-\(name)")
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            source?.draw(in: rect)
+            return true
+        }
+        image.isTemplate = true
+        return Image(nsImage: image)
+    }
 }
 
 /// A titled group: icon and title above a rounded panel.

@@ -91,13 +91,7 @@ private struct TextCard: View {
                 .frame(width: 64)
             }
             Row(label: "Align") {
-                Picker("Align", selection: Binding(get: { box.alignment }, set: { alignment in style { $0.alignment = alignment } })) {
-                    ForEach(TextAlignment.allCases, id: \.self) { alignment in
-                        TablerIcon("align-\(alignment.rawValue)", size: 14).tag(alignment)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                AlignmentPicker(selection: box.alignment) { alignment in style { $0.alignment = alignment } }
             }
             Row(label: "Width") {
                 Picker("Width", selection: Binding(get: { box.width != nil }, set: { fixed in
@@ -109,6 +103,8 @@ private struct TextCard: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                // A fixed width: on its first layout the picker sits a few points off and moves on the next edit.
+                .frame(width: 109)
                 .help("Auto grows with the text; Fixed wraps it. The side handles set the width too.")
             }
             HStack(spacing: 10) {
@@ -165,6 +161,44 @@ private struct NumberField: View {
     private func format(_ value: Double?) -> String {
         guard let value else { return "" }
         return value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+    }
+}
+
+/// Left, center, right as an AppKit segmented control. SwiftUI's segmented picker sizes
+/// image segments differently on its first layout and shifts on the next edit.
+private struct AlignmentPicker: NSViewRepresentable {
+    let selection: SlidesCore.TextAlignment
+    let onPick: (SlidesCore.TextAlignment) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let images = SlidesCore.TextAlignment.allCases.map { alignment in
+            let image = NSImage(named: "ti-align-\(alignment.rawValue)") ?? NSImage()
+            image.size = NSSize(width: 14, height: 14)
+            image.isTemplate = true
+            return image
+        }
+        let control = NSSegmentedControl(images: images, trackingMode: .selectOne, target: context.coordinator, action: #selector(Coordinator.picked(_:)))
+        control.setContentHuggingPriority(.required, for: .horizontal)
+        return control
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView control: NSSegmentedControl, context: Context) -> CGSize? {
+        control.fittingSize
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.pick = onPick
+        control.selectedSegment = SlidesCore.TextAlignment.allCases.firstIndex(of: selection) ?? 0
+    }
+
+    final class Coordinator: NSObject {
+        var pick: (SlidesCore.TextAlignment) -> Void = { _ in }
+
+        @objc func picked(_ sender: NSSegmentedControl) {
+            if SlidesCore.TextAlignment.allCases.indices.contains(sender.selectedSegment) { pick(SlidesCore.TextAlignment.allCases[sender.selectedSegment]) }
+        }
     }
 }
 
