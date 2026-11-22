@@ -77,6 +77,7 @@ struct SlidesTools {
         tool("export", "Exports all slides into a folder: PNG per frame, MP4 for slides with video. Returns the files.", [
             "folder": string("Absolute folder path. Created if missing."),
             "size": enumeration(["instagram", "large"], "instagram: 2x (1536 × 2048 for 3:4, default). large: 3x."),
+            "sharpening": enumeration(Sharpening.allCases.map(\.rawValue), "Output sharpening for photos exported smaller than their file. Default: the one picked in the app (standard unless changed)."),
         ], required: ["folder"]),
         tool("add_text", "Adds a text box on top of a slide. Without x or y it's centered on the first frame. Without width it grows with the text; with width it wraps.", textProperties.merging(["slide": slideArg]) { a, _ in a }, required: ["text"]),
         tool("update_text", "Changes a text box. Only the given fields change.", textProperties.merging(["slide": slideArg, "box": boxArg, "arrange": arrangeArg]) { a, _ in a }, required: ["box"]),
@@ -288,7 +289,8 @@ struct SlidesTools {
             let folder = URL(filePath: path, directoryHint: .isDirectory)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let size: EditorModel.ExportSize = args.string("size") == "large" ? .large : .instagram
-            let urls = try await editor.exportFiles(to: folder, size: size)
+            let sharpening = args.string("sharpening").flatMap(Sharpening.init(rawValue:))
+            let urls = try await editor.exportFiles(to: folder, size: size, sharpening: sharpening)
             return json(urls.map(\.path))
 
         case "add_text":

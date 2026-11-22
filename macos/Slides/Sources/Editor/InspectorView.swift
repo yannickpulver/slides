@@ -620,6 +620,15 @@ private struct ExportCard: View {
                 .buttonSizing(.flexible)
                 .frame(maxWidth: .infinity)
             }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sharpening").foregroundStyle(.secondary)
+                Picker("Sharpening", selection: $editor.exportSharpening) {
+                    ForEach(Sharpening.allCases, id: \.self) { Text($0.name).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Sharpens photos that are exported smaller than their original")
+            }
             Button { editor.exportWithPanel() } label: {
                 Text("Export \(editor.project.frameCount) \(editor.project.frameCount == 1 ? "Slide" : "Slides")…")
                     .frame(maxWidth: .infinity)
