@@ -69,6 +69,11 @@ public struct SlideLayout: Sendable {
         }
     }
 
+    /// Show Crop: the whole photo scaled down to fit its slot, and the box on it that the slot normally shows.
+    public func cropPreview(slot index: Int, mediaSize: CGSize, crop: Crop) -> CropPreview {
+        CropPreview(mediaRect: mediaRect(slot: index, mediaSize: mediaSize, crop: crop), angle: crop.angle, area: visibleArea(slot: index))
+    }
+
     /// Background image covering the whole canvas, centered.
     public func backgroundRect(imageSize: CGSize) -> CGRect {
         Self.coverRect(in: canvas, size: imageSize)
@@ -150,4 +155,39 @@ public struct SlideLayout: Sendable {
 
 func clamp(_ value: Double, _ lower: Double, _ upper: Double) -> Double {
     min(max(value, lower), upper)
+}
+
+/// Show Crop geometry for one slot, in the same coordinates as the slot's area.
+public struct CropPreview: Equatable, Sendable {
+    /// Width of the box outline and grid lines, in 1x pixels.
+    public static let lineWidth = 2.0
+    /// Opacity of the black over the photo outside the box.
+    public static let dim = 0.55
+
+    /// The whole photo, before turning by the crop's angle around its center.
+    public let photo: CGRect
+    /// The part of the photo the slot shows without Show Crop.
+    public let box: CGRect
+    /// How much the photo shrinks: on-screen distances inside the box times this.
+    public let factor: Double
+
+    /// Shrinks the turned photo to fit `area` and centers it; the area itself becomes the box.
+    public init(mediaRect: CGRect, angle: Double, area: CGRect) {
+        let bounds = SlideLayout.turnedBounds(mediaRect, angle: angle)
+        let factor = min(area.width / max(bounds.width, 1), area.height / max(bounds.height, 1), 1)
+        func map(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: (point.x - mediaRect.midX) * factor + area.midX, y: (point.y - mediaRect.midY) * factor + area.midY)
+        }
+        self.factor = factor
+        photo = CGRect(origin: map(mediaRect.origin), size: CGSize(width: mediaRect.width * factor, height: mediaRect.height * factor))
+        box = CGRect(origin: map(area.origin), size: CGSize(width: area.width * factor, height: area.height * factor))
+    }
+
+    /// Lines at a third and two thirds of the box, both ways.
+    public var thirds: [(CGPoint, CGPoint)] {
+        (1...2).flatMap { i -> [(CGPoint, CGPoint)] in
+            let x = box.minX + box.width * Double(i) / 3, y = box.minY + box.height * Double(i) / 3
+            return [(CGPoint(x: x, y: box.minY), CGPoint(x: x, y: box.maxY)), (CGPoint(x: box.minX, y: y), CGPoint(x: box.maxX, y: y))]
+        }
+    }
 }

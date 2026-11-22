@@ -59,11 +59,35 @@ struct SlotView: View {
         // Visible area in slot-local points.
         let visibleRect = visible.scaled(scale).offsetBy(dx: -slotRect.minX, dy: -slotRect.minY)
         let origin = visible.scaled(scale).origin
+        // Photo relative to the visible area.
+        let mediaRect = size.map {
+            layout.mediaRect(slot: index, mediaSize: $0, crop: media.crop).scaled(scale)
+                .offsetBy(dx: -origin.x, dy: -origin.y)
+        }
+        // Show Crop, relative to the visible area.
+        let preview = slide.style.showCrop ? size.map { layout.cropPreview(slot: index, mediaSize: $0, crop: media.crop) } : nil
+        let photo = preview?.photo.scaled(scale).offsetBy(dx: -origin.x, dy: -origin.y)
+        let box = preview?.box.scaled(scale).offsetBy(dx: -origin.x, dy: -origin.y)
 
         ZStack(alignment: .topLeading) {
-            if let image, let size {
-                let mediaRect = layout.mediaRect(slot: index, mediaSize: size, crop: media.crop).scaled(scale)
-                    .offsetBy(dx: -origin.x, dy: -origin.y)
+            if let image, let photo, let box {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .interpolation(.high)
+                    .overlay(Color.black.opacity(CropPreview.dim))
+                    .placed(at: photo, angle: media.crop.angle)
+                ZStack(alignment: .topLeading) {
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .interpolation(.high)
+                        .placed(at: photo, angle: media.crop.angle)
+                }
+                .frame(width: visibleRect.width, height: visibleRect.height, alignment: .topLeading)
+                .mask(alignment: .topLeading) { Rectangle().placed(at: box) }
+                CropBoxLines(lineWidth: CropPreview.lineWidth * scale)
+                    .placed(at: box)
+                    .allowsHitTesting(false)
+            } else if let image, let mediaRect {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.high)
@@ -80,6 +104,8 @@ struct SlotView: View {
         .contentShape(Rectangle())
         .modifier(CropGestures(
             enabled: interactive && slide.style.fit == .fill && size != nil,
+            // With Show Crop the box follows the pointer, so the photo moves the other way.
+            panScale: preview.map { -1 / $0.factor } ?? 1,
             onChange: { update in
                 guard let size else { return }
                 let start = gestureStart ?? media.crop
@@ -102,21 +128,24 @@ struct SlotView: View {
         }
         .offset(x: visibleRect.minX, y: visibleRect.minY)
 
+        // The crop box in slot-local points.
+        let slotBox = box?.offsetBy(dx: visibleRect.minX, dy: visibleRect.minY)
+
         if rotating {
             StraightenGrid()
-                .frame(width: visibleRect.width, height: visibleRect.height)
+                .placed(at: slotBox ?? visibleRect)
                 .clipped()
                 .allowsHitTesting(false)
-                .offset(x: visibleRect.minX, y: visibleRect.minY)
         }
 
         if interactive, hovering || gestureStart != nil {
             if slide.style.fit == .fill, let size {
-                CornerHandles(rect: visibleRect) { factor in
+                CornerHandles(rect: slotBox ?? visibleRect) { factor in
                     let start = gestureStart ?? media.crop
                     if gestureStart == nil { gestureStart = start }
                     var crop = start
-                    crop.zoom = start.zoom * factor
+                    // On the crop box, dragging outward makes the box bigger: zooms out.
+                    crop.zoom = slotBox == nil ? start.zoom * factor : start.zoom / factor
                     editor?.setCrop(SlideLayout.clampedCrop(crop, in: visible, mediaSize: size), slot: index, in: slide.id)
                 } onEnd: {
                     gestureStart = nil
@@ -206,6 +235,8 @@ private struct FileDrop: ViewModifier {
 /// Pan with a drag, zoom with a trackpad pinch.
 private struct CropGestures: ViewModifier {
     let enabled: Bool
+    /// Pointer movement to photo movement.
+    let panScale: Double
     /// Receives a function from the crop at gesture start and the visible size in points to the new crop.
     let onChange: ((Crop, CGSize) -> Crop) -> Void
     let onEnd: () -> Void
@@ -218,8 +249,8 @@ private struct CropGestures: ViewModifier {
                         .onChanged { value in
                             onChange { start, size in
                                 var crop = start
-                                crop.x = start.x + value.translation.width / max(size.width, 1)
-                                crop.y = start.y + value.translation.height / max(size.height, 1)
+                                crop.x = start.x + value.translation.width * panScale / max(size.width, 1)
+                                crop.y = start.y + value.translation.height * panScale / max(size.height, 1)
                                 return crop
                             }
                         }
@@ -291,6 +322,25 @@ private struct RotateHandle: View {
         .pointerStyle(.columnResize)
         .help("Drag sideways to rotate, double-click to straighten")
         .padding(8)
+    }
+}
+
+/// Show Crop: outline and thirds of the crop box, as the export draws them.
+private struct CropBoxLines: View {
+    let lineWidth: Double
+
+    var body: some View {
+        Canvas { context, size in
+            var thirds = Path()
+            for i in 1...2 {
+                let x = size.width * Double(i) / 3, y = size.height * Double(i) / 3
+                thirds.move(to: CGPoint(x: x, y: 0)); thirds.addLine(to: CGPoint(x: x, y: size.height))
+                thirds.move(to: CGPoint(x: 0, y: y)); thirds.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            context.stroke(thirds, with: .color(.white.opacity(0.85)), lineWidth: lineWidth)
+            let outline = CGRect(origin: .zero, size: size).insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+            context.stroke(Path(outline), with: .color(.white), lineWidth: lineWidth)
+        }
     }
 }
 
