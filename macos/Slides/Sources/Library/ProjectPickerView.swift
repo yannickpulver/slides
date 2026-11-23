@@ -51,6 +51,7 @@ struct ProjectPickerView: View {
                             project: project,
                             library: app.library,
                             onOpen: { app.open(project, slide: $0) },
+                            onCopy: { app.copy($0, of: project) },
                             onDelete: { app.delete(project) },
                             onReveal: { app.revealInFinder(project) }
                         )
@@ -171,6 +172,7 @@ struct ProjectFilmstrip: View {
     let project: ProjectSummary
     let library: ProjectLibrary
     let onOpen: (Slide.ID?) -> Void
+    let onCopy: (Slide.ID) -> Void
     let onDelete: () -> Void
     let onReveal: () -> Void
 
@@ -188,6 +190,13 @@ struct ProjectFilmstrip: View {
                     ForEach(project.slides) { slide in
                         FilmstripSlide(slide: slide, project: project, library: library)
                             .onTapGesture { onOpen(slide.id) }
+                            .contextMenu {
+                                Button("Open") { onOpen(slide.id) }
+                                Button("Copy") { onCopy(slide.id) }
+                                Button("Show in Finder", action: onReveal)
+                                Divider()
+                                Button("Move to Trash", role: .destructive, action: onDelete)
+                            }
                     }
                 }
                 .padding(.horizontal, 28)
