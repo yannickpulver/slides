@@ -102,4 +102,25 @@ final class AppModel {
     func revealInFinder(_ summary: ProjectSummary) {
         NSWorkspace.shared.activateFileViewerSelecting([summary.url])
     }
+
+    /// Puts one slide on the clipboard as PNG, rendered like the export at Instagram size.
+    /// A panorama goes on as one image per frame; a video slide as its first frame.
+    func copy(_ slide: Slide.ID, of summary: ProjectSummary) {
+        guard let project = try? library.load(summary.url),
+              let index = project.slides.firstIndex(where: { $0.id == slide }) else { return }
+        let library = library
+        let url = summary.url
+        let exporter = Exporter(project: project, scale: EditorModel.ExportSize.instagram.rawValue) { library.mediaURL($0, in: url) }
+        Task {
+            let items = await exporter.render(slideAt: index).compactMap { image -> NSPasteboardItem? in
+                guard let png = Exporter.pngData(image) else { return nil }
+                let item = NSPasteboardItem()
+                item.setData(png, forType: .png)
+                return item
+            }
+            guard !items.isEmpty else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.writeObjects(items)
+        }
+    }
 }
