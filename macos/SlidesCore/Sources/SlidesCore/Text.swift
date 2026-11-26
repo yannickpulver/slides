@@ -177,6 +177,20 @@ extension TextBox {
         self = box
         self.text = text
     }
+
+    /// Sets the text. An auto-width box keeps its alignment edge in place: centered text grows to both sides, right-aligned text to the left.
+    public mutating func setText(_ text: String) {
+        let before = TextRenderer.size(of: self).width
+        self.text = text
+        guard width == nil else { return }
+        let grown = TextRenderer.size(of: self).width - before
+        let shift = switch alignment {
+        case .left: 0.0
+        case .center: grown / 2
+        case .right: grown
+        }
+        x -= shift
+    }
 }
 
 extension Slide {

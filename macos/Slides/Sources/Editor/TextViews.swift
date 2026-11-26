@@ -174,7 +174,7 @@ struct FreeItemsOverlay: View {
     private func editing(_ box: TextBox) -> some View {
         let rect = TextRenderer.rect(of: box).scaled(scale)
         InlineTextEditor(box: box, scale: scale) { text in
-            editor.updateText(box.id, "text") { $0.text = text }
+            editor.updateText(box.id, "text") { $0.setText(text) }
         } onEnd: {
             editor.endTextEditing()
         }

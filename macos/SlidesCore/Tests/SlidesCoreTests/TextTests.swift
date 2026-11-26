@@ -23,6 +23,19 @@ struct TextTests {
         #expect(long.height == short.height)
     }
 
+    @Test func centeredAutoWidthGrowsToBothSides() {
+        var box = TextBox(text: "Hi", x: 100, y: 0)
+        box.alignment = .center
+        let center = TextRenderer.rect(of: box).midX
+        box.setText("Hello there, world")
+        #expect(abs(TextRenderer.rect(of: box).midX - center) < 0.01)
+
+        box.alignment = .right
+        let right = TextRenderer.rect(of: box).maxX
+        box.setText("Hi")
+        #expect(abs(TextRenderer.rect(of: box).maxX - right) < 0.01)
+    }
+
     @Test func fixedWidthWraps() {
         let box = TextBox(text: "Hello there, world, this wraps", x: 0, y: 0, width: 200)
         let size = TextRenderer.size(of: box)
