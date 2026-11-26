@@ -21,6 +21,7 @@ struct InspectorView: View {
                 LayoutCard(editor: editor, slide: slide)
                 BackgroundCard(editor: editor, slide: slide)
                 PhotoCard(editor: editor, slide: slide)
+                CameraCard(editor: editor, slide: slide)
                 FreePhotosCard(editor: editor)
                 ExportCard(editor: editor)
             }
@@ -318,9 +319,7 @@ private struct FormatCard: View {
 
     var body: some View {
         Card(title: "Format", icon: "aspect-ratio") {
-            Row(label: "Ratio") {
-                Segmented(segments: Format.allCases.map { .init(value: $0, title: $0.label) }, selection: editor.project.format) { editor.setFormat($0) }
-            }
+            Segmented(segments: Format.allCases.map { .init(value: $0, title: $0.label) }, selection: editor.project.format, fill: true) { editor.setFormat($0) }
             Text("Applies to all slides")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -488,6 +487,75 @@ private struct PhotoCard: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .help("Whole photo, dimmed, with the crop as a box and thirds. Also in the export.")
+            }
+        }
+    }
+}
+
+/// Camera, lens and exposure of the slide's photos, or of the selected free photo.
+/// Hidden when no file says.
+private struct CameraCard: View {
+    let editor: EditorModel
+    let slide: Slide
+
+    private var infos: [CameraInfo] {
+        let files = editor.selectedPhoto.map { [$0.file] }
+            ?? slide.slots.compactMap { $0?.kind == .image ? $0?.file : nil }
+        return files
+            .map { MediaCache.shared.camera(for: editor.mediaURL($0)) }
+            .filter { !$0.isEmpty }
+    }
+
+    var body: some View {
+        let infos = infos
+        if !infos.isEmpty {
+            Card(title: "Camera", icon: "camera") {
+                ForEach(infos.indices, id: \.self) { index in
+                    if index > 0 { Divider() }
+                    CameraDetails(info: infos[index])
+                }
+            }
+        }
+    }
+}
+
+/// Like the info panel in Photos: body in bold, lens below, exposure in a strip.
+private struct CameraDetails: View {
+    let info: CameraInfo
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let camera = info.camera {
+                    Text(camera).fontWeight(.semibold)
+                }
+                if let lens = info.lens {
+                    Text(lens).foregroundStyle(.secondary)
+                }
+            }
+            // Wraps instead of widening the inspector.
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(-1)
+            .textSelection(.enabled)
+            if !info.exposure.isEmpty {
+                HStack(spacing: 0) {
+                    ForEach(info.exposure.indices, id: \.self) { index in
+                        if index > 0 {
+                            Spacer(minLength: 4)
+                            Divider().frame(height: 12)
+                            Spacer(minLength: 4)
+                        }
+                        Text(info.exposure[index])
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    }
+                }
+                .font(.callout)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(.secondary)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
             }
         }
     }
