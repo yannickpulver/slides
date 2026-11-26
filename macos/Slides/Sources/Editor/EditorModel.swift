@@ -34,9 +34,12 @@ final class EditorModel {
     @ObservationIgnored weak var undoManager: UndoManager?
     @ObservationIgnored private var lastEdit: (key: String, time: Date)?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
+    /// What's on disk, so opening and closing without edits leaves the file (and its date) alone.
+    @ObservationIgnored private var savedProject: Project
 
     init(project: Project, url: URL, library: ProjectLibrary) {
         self.project = project
+        savedProject = project
         self.url = url
         self.library = library
         selectedSlideID = project.slides[0].id
@@ -382,15 +385,22 @@ final class EditorModel {
     /// Writes `project.json` right away; the cover follows when it's rendered.
     func saveNow() {
         saveTask?.cancel()
-        try? library.save(project, at: url)
+        guard writeProject() else { return }
         Task { await saveCover() }
     }
 
     /// Writes `project.json` and waits for the cover, so the start screen shows it.
     func save() async {
         saveTask?.cancel()
-        try? library.save(project, at: url)
+        guard writeProject() else { return }
         await saveCover()
+    }
+
+    /// Writes `project.json` if it changed since the last write.
+    private func writeProject() -> Bool {
+        guard project != savedProject, (try? library.save(project, at: url)) != nil else { return false }
+        savedProject = project
+        return true
     }
 
     private func saveCover() async {
