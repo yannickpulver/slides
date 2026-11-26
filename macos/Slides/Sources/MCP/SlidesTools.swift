@@ -530,7 +530,7 @@ struct SlidesTools {
             throw ToolError("No font \(font). Use a PostScript name from list_fonts.")
         }
         return { box in
-            if let text = args.string("text") { box.text = text }
+            if let text = args.string("text") { box.setText(text) }
             if let x = args.double("x") { box.x = x }
             if let y = args.double("y") { box.y = y }
             if let width = args.double("width") { box.width = width > 0 ? width : nil }
