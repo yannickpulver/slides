@@ -1,4 +1,5 @@
 import CoreGraphics
+import ImageIO
 import Foundation
 import Observation
 import SlidesCore
@@ -20,6 +21,7 @@ final class MediaCache {
     @ObservationIgnored private var loading: Set<URL> = []
     @ObservationIgnored private var loadingSharp: [URL: Int] = [:]
     @ObservationIgnored private var sharpOrder: [URL] = []
+    @ObservationIgnored private var cameras: [URL: CameraInfo] = [:]
 
     /// Returns the preview if decoded; otherwise starts decoding and returns `nil` until it lands.
     func image(for url: URL) -> CGImage? {
@@ -47,6 +49,14 @@ final class MediaCache {
         }
         loadSharp(url, size: size)
         return sharp[url]?.image ?? preview
+    }
+
+    /// Camera and lens from the photo's EXIF, read once per file.
+    func camera(for url: URL) -> CameraInfo {
+        if let info = cameras[url] { return info }
+        let info = CameraInfo(url: url)
+        cameras[url] = info
+        return info
     }
 
     /// Decodes ahead of time, so a dropped file shows up without a loading flash.
@@ -88,5 +98,52 @@ final class MediaCache {
     @concurrent
     private static func decode(_ url: URL, maxPixelSize: Int) async -> CGImage? {
         await MediaLoader.preview(at: url, maxPixelSize: maxPixelSize)
+    }
+}
+
+/// What a photo was taken with; `nil` where the file doesn't say.
+struct CameraInfo {
+    var camera: String?
+    var lens: String?
+    /// Focal length, aperture, shutter and ISO, as far as known: "35 mm", "f/3.5", "1/2000 s", "ISO 100".
+    var exposure: [String] = []
+
+    init(url: URL) {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else { return }
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        camera = Self.camera(make: Self.text(tiff?[kCGImagePropertyTIFFMake]), model: Self.text(tiff?[kCGImagePropertyTIFFModel]))
+        lens = Self.text(exif?[kCGImagePropertyExifLensModel])
+        let focal = (exif?[kCGImagePropertyExifFocalLength] as? Double).map { "\(Self.number($0)) mm" }
+        let aperture = (exif?[kCGImagePropertyExifFNumber] as? Double).map { "f/\(Self.number($0))" }
+        let shutter = (exif?[kCGImagePropertyExifExposureTime] as? Double).flatMap(Self.shutter)
+        let iso = (exif?[kCGImagePropertyExifISOSpeedRatings] as? [Int])?.first.map { "ISO \($0)" }
+        exposure = [focal, aperture, shutter, iso].compactMap { $0 }
+    }
+
+    var isEmpty: Bool { camera == nil && lens == nil && exposure.isEmpty }
+
+    /// 1/2000 s below a second, 2 s or 0.5 s otherwise, as cameras show it.
+    private static func shutter(_ seconds: Double) -> String? {
+        guard seconds > 0 else { return nil }
+        return seconds < 0.4 ? "1/\(Int((1 / seconds).rounded())) s" : "\(number(seconds)) s"
+    }
+
+    /// At most one decimal, none when whole: 35, 5.6.
+    private static func number(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...1)))
+    }
+
+    /// "Canon" + "Canon EOS R5" reads "Canon EOS R5"; "FUJIFILM" + "X100VI" reads "FUJIFILM X100VI".
+    private static func camera(make: String?, model: String?) -> String? {
+        guard let model else { return make }
+        guard let brand = make?.split(separator: " ").first else { return model }
+        return model.lowercased().hasPrefix(brand.lowercased()) ? model : "\(brand) \(model)"
+    }
+
+    private static func text(_ value: Any?) -> String? {
+        let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines.union(.controlCharacters))
+        return text?.isEmpty == false ? text : nil
     }
 }
